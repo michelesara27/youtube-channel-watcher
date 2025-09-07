@@ -96,6 +96,7 @@ export const AuthProvider = ({ children }) => {
     signInWithGoogle,
     signOut,
     isAuthenticated: !!user,
+    setUser, // Adicione esta linha
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

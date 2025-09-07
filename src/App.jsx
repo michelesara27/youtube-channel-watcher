@@ -4,6 +4,7 @@ import { useChannels } from "./hooks/useChannels";
 import { useVideos } from "./hooks/useVideos";
 import { useAuth } from "./contexts/AuthContext";
 import { useAchievements } from "./hooks/useAchievements";
+import AuthCallback from "./components/AuthCallback";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import VideoGrid from "./components/VideoGrid";

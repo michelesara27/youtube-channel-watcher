@@ -15,13 +15,28 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Login localhost:
+  //const handleLogin = () => {
+  // Login direto sem dependência do script
+  //  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  //  const redirectUri = encodeURIComponent("http://localhost:5173");
+  //  const scope = encodeURIComponent("email profile");
+
+  //  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+
+  //  window.location.href = authUrl;
+  //};
+
   const handleLogin = () => {
-    // Login direto sem dependência do script
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const redirectUri = encodeURIComponent("http://localhost:5173");
+    const redirectUri = encodeURIComponent(
+      import.meta.env.VITE_GOOGLE_REDIRECT_URI ||
+        "https://youtube-canais.pages.dev/auth/callback"
+    );
     const scope = encodeURIComponent("email profile");
 
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    // URL correta para o fluxo OAuth do Google
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&prompt=consent`;
 
     window.location.href = authUrl;
   };
