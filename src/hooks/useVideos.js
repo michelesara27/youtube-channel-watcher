@@ -1,11 +1,13 @@
-// src/hooks/useVideos.js
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
 export const useVideos = (userSession) => {
   const [videos, setVideos] = useState([]);
+  const [allVideos, setAllVideos] = useState([]); // Mantém todos os vídeos para busca
   const [watchedVideos, setWatchedVideos] = useState(new Set());
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     if (userSession) {
@@ -16,17 +18,14 @@ export const useVideos = (userSession) => {
 
   // Debug: verificar vídeos carregados
   useEffect(() => {
-    if (videos.length > 0) {
-      console.log("📊 Videos carregados:", videos.length);
-      videos.forEach((video) => {
-        console.log(`🎬 ${video.title}`);
-        console.log(`   ID: ${video.video_id}`);
-        console.log(
-          `   URL: https://www.youtube.com/watch?v=${video.video_id}`
-        );
-      });
+    if (allVideos.length > 0) {
+      console.log("📊 Videos carregados:", allVideos.length);
+      console.log(
+        "🔍 Vídeos com keywords:",
+        allVideos.filter((v) => v.keywords && v.keywords.length > 0).length
+      );
     }
-  }, [videos]);
+  }, [allVideos]);
 
   const fetchVideos = async () => {
     try {
@@ -43,12 +42,14 @@ export const useVideos = (userSession) => {
 
       if (error) throw error;
 
-      // Adicionar channel_name aos vídeos
+      // Adicionar channel_name aos vídeos e garantir keywords como array
       const videosWithChannelName = data.map((video) => ({
         ...video,
         channel_name: video.channels?.name || "Canal desconhecido",
+        keywords: Array.isArray(video.keywords) ? video.keywords : [],
       }));
 
+      setAllVideos(videosWithChannelName || []);
       setVideos(videosWithChannelName || []);
     } catch (error) {
       console.error("Error fetching videos:", error.message);
@@ -123,11 +124,186 @@ export const useVideos = (userSession) => {
     }
   };
 
+  // Função para atualizar keywords de um vídeo localmente
+  const updateVideoKeywords = (videoId, newKeywords) => {
+    setAllVideos((prevVideos) =>
+      prevVideos.map((video) =>
+        video.video_id === videoId ? { ...video, keywords: newKeywords } : video
+      )
+    );
+
+    setVideos((prevVideos) =>
+      prevVideos.map((video) =>
+        video.video_id === videoId ? { ...video, keywords: newKeywords } : video
+      )
+    );
+  };
+
+  // Função de busca por keywords, título ou canal
+  const searchVideos = async (term) => {
+    setSearchTerm(term.toLowerCase());
+
+    if (!term.trim()) {
+      setVideos(allVideos);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    // Pequeno delay para evitar busca em cada tecla digitada
+    setTimeout(() => {
+      const filtered = allVideos.filter((video) => {
+        const searchTerm = term.toLowerCase();
+
+        // Busca por keywords
+        const hasKeyword =
+          video.keywords &&
+          video.keywords.some((keyword) =>
+            keyword.toLowerCase().includes(searchTerm)
+          );
+
+        // Busca por título
+        const hasTitle = video.title.toLowerCase().includes(searchTerm);
+
+        // Busca por canal
+        const hasChannel = video.channel_name
+          .toLowerCase()
+          .includes(searchTerm);
+
+        return hasKeyword || hasTitle || hasChannel;
+      });
+
+      setVideos(filtered);
+      setSearchLoading(false);
+    }, 300);
+  };
+
+  // Busca avançada usando operadores do Supabase (opcional)
+  const advancedSearch = async (term) => {
+    if (!term.trim()) {
+      setVideos(allVideos);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    try {
+      // Busca no Supabase usando operadores de array e texto
+      const { data, error } = await supabase
+        .from("videos")
+        .select(
+          `
+          *,
+          channels (name)
+        `
+        )
+        .or(`title.ilike.%${term}%,channel_id.ilike.%${term}%`)
+        .contains("keywords", [term.toLowerCase()])
+        .order("published_at", { ascending: false });
+
+      if (error) throw error;
+
+      const videosWithChannelName = data.map((video) => ({
+        ...video,
+        channel_name: video.channels?.name || "Canal desconhecido",
+        keywords: Array.isArray(video.keywords) ? video.keywords : [],
+      }));
+
+      setVideos(videosWithChannelName);
+    } catch (error) {
+      console.error("Error in advanced search:", error);
+      // Fallback para busca local em caso de erro
+      searchVideos(term);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Função para buscar vídeos por keyword específica
+  const searchVideosByKeyword = async (keyword) => {
+    if (!keyword.trim()) return allVideos;
+
+    setSearchLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("videos")
+        .select(
+          `
+          *,
+          channels (name)
+        `
+        )
+        .contains("keywords", [keyword.toLowerCase()])
+        .order("published_at", { ascending: false });
+
+      if (error) throw error;
+
+      const videosWithChannelName = data.map((video) => ({
+        ...video,
+        channel_name: video.channels?.name || "Canal desconhecido",
+        keywords: Array.isArray(video.keywords) ? video.keywords : [],
+      }));
+
+      setVideos(videosWithChannelName);
+      setSearchTerm(keyword);
+    } catch (error) {
+      console.error("Error searching by keyword:", error);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Função para obter todas as keywords únicas
+  const getAllUniqueKeywords = () => {
+    const allKeywords = allVideos.flatMap((video) => video.keywords || []);
+    const uniqueKeywords = [...new Set(allKeywords)].sort();
+    return uniqueKeywords;
+  };
+
+  // Função para obter estatísticas de keywords
+  const getKeywordStats = () => {
+    const keywordCount = {};
+
+    allVideos.forEach((video) => {
+      (video.keywords || []).forEach((keyword) => {
+        keywordCount[keyword] = (keywordCount[keyword] || 0) + 1;
+      });
+    });
+
+    return Object.entries(keywordCount)
+      .sort(([, a], [, b]) => b - a)
+      .map(([keyword, count]) => ({ keyword, count }));
+  };
+
+  // Função para limpar busca
+  const clearSearch = () => {
+    setSearchTerm("");
+    setVideos(allVideos);
+  };
+
   return {
+    // Vídeos atuais (filtrados ou não)
     videos,
+    // Todos os vídeos sem filtro
+    allVideos,
+    // Vídeos assistidos
     watchedVideos,
-    loading,
+    // Estados de loading
+    loading: loading || searchLoading,
+    searchLoading,
+    // Termo de busca atual
+    searchTerm,
+    // Funções principais
     toggleWatchedStatus,
     refreshVideos: fetchVideos,
+    updateVideoKeywords,
+    searchVideos,
+    advancedSearch,
+    searchVideosByKeyword,
+    clearSearch,
+    // Funções utilitárias
+    getAllUniqueKeywords,
+    getKeywordStats,
   };
 };

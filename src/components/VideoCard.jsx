@@ -1,10 +1,11 @@
-// src/components/VideoCard.jsx
-import { Check, Play, Clock } from "lucide-react";
+import { Check, Play, Clock, Tag } from "lucide-react";
 import { useState } from "react";
+import KeywordManager from "./KeywordManager";
 
-const VideoCard = ({ video, isWatched, onToggleWatched }) => {
+const VideoCard = ({ video, isWatched, onToggleWatched, onKeywordsUpdate }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [showKeywords, setShowKeywords] = useState(false);
 
   const handleToggleWatched = (e) => {
     e.stopPropagation();
@@ -13,14 +14,13 @@ const VideoCard = ({ video, isWatched, onToggleWatched }) => {
       setTimeout(() => {
         onToggleWatched();
         setIsExiting(false);
-      }, 300); // Duração da animação
+      }, 300);
     } else {
       onToggleWatched();
     }
   };
 
   const handleOpenVideo = () => {
-    // CORREÇÃO: Gerar URL do YouTube corretamente
     const youtubeUrl = `https://www.youtube.com/watch?v=${video.video_id}`;
     window.open(youtubeUrl, "_blank");
   };
@@ -36,6 +36,10 @@ const VideoCard = ({ video, isWatched, onToggleWatched }) => {
     if (diffDays < 7) return `Há ${diffDays} dias`;
     if (diffDays < 30) return `Há ${Math.floor(diffDays / 7)} semanas`;
     return `Há ${Math.floor(diffDays / 30)} meses`;
+  };
+
+  const handleKeywordsUpdate = (newKeywords) => {
+    onKeywordsUpdate?.(video.video_id, newKeywords);
   };
 
   return (
@@ -93,13 +97,35 @@ const VideoCard = ({ video, isWatched, onToggleWatched }) => {
             {video.title}
           </h3>
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
             <span>{video.channel_name}</span>
             <div className="flex items-center space-x-1">
               <Clock size={14} />
               <span>{formatDate(video.published_at)}</span>
             </div>
           </div>
+
+          {/* Botão para gerenciar keywords */}
+          <button
+            onClick={() => setShowKeywords(!showKeywords)}
+            className="w-full flex items-center justify-center space-x-1 text-xs text-blue-600 hover:text-blue-800 p-2 bg-blue-50 rounded-md transition-colors"
+          >
+            <Tag size={12} />
+            <span>
+              {showKeywords
+                ? "Ocultar tags"
+                : `Gerenciar tags (${video.keywords?.length || 0})`}
+            </span>
+          </button>
+
+          {/* Gerenciador de Keywords */}
+          {showKeywords && (
+            <KeywordManager
+              videoId={video.video_id}
+              initialKeywords={video.keywords || []}
+              onKeywordsChange={handleKeywordsUpdate}
+            />
+          )}
         </div>
       </div>
     </div>

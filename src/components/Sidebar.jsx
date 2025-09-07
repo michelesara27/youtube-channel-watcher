@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { X, Plus, Trash2, AlertTriangle, LogOut, User } from "lucide-react";
+import {
+  X,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  LogOut,
+  User,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 import {
   isValidYouTubeChannelUrl,
   extractChannelIdFromUrl,
@@ -19,6 +28,7 @@ const Sidebar = ({
   const [channelUrl, setChannelUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [channelToDelete, setChannelToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, signOut } = useAuth();
@@ -28,6 +38,7 @@ const Sidebar = ({
 
     if (!channelUrl.trim()) {
       setError("Por favor, insira uma URL válida");
+      setSuccess("");
       return;
     }
 
@@ -35,11 +46,13 @@ const Sidebar = ({
 
     if (!validationResult.isValid) {
       setError(validationResult.error);
+      setSuccess("");
       return;
     }
 
     setIsAdding(true);
     setError("");
+    setSuccess("");
 
     try {
       const { channelId } = validationResult;
@@ -47,11 +60,31 @@ const Sidebar = ({
 
       if (result.success) {
         setChannelUrl("");
+        if (result.videosAdded > 0) {
+          setSuccess(
+            `✅ Canal adicionado com ${result.videosAdded} vídeo(s) novo(s)!`
+          );
+        } else if (result.totalVideosFound > 0) {
+          setSuccess(
+            "✅ Canal adicionado! Todos os vídeos já estavam na lista."
+          );
+        } else {
+          setSuccess("✅ Canal adicionado! Nenhum vídeo novo encontrado.");
+        }
+
+        // Limpar mensagem de sucesso após 5 segundos
+        setTimeout(() => setSuccess(""), 5000);
       } else {
-        setError(result.error || "Erro ao adicionar canal");
+        if (result.code === "CHANNEL_ALREADY_EXISTS") {
+          setError("⚠️ " + result.error);
+        } else {
+          setError(result.error || "Erro ao adicionar canal");
+        }
+        setSuccess("");
       }
     } catch (err) {
       setError("Erro ao processar o canal");
+      setSuccess("");
     } finally {
       setIsAdding(false);
     }
@@ -59,6 +92,8 @@ const Sidebar = ({
 
   const confirmDeleteChannel = (channel) => {
     setChannelToDelete(channel);
+    setError("");
+    setSuccess("");
   };
 
   const cancelDelete = () => {
@@ -69,18 +104,20 @@ const Sidebar = ({
     if (!channelToDelete) return;
 
     setIsDeleting(true);
+    setError("");
+    setSuccess("");
+
     try {
       const result = await removeChannel(channelToDelete.channel_id);
       if (result.success) {
-        console.log("✅ Canal excluído com sucesso");
+        setSuccess("✅ Canal removido com sucesso!");
+        setTimeout(() => setSuccess(""), 3000);
       } else {
-        console.error("❌ Erro ao excluir canal:", result.error);
-        // Poderia mostrar um toast/alert aqui
-        setError(result.error || "Erro ao excluir canal");
+        setError("❌ " + (result.error || "Erro ao excluir canal"));
       }
     } catch (error) {
       console.error("❌ Erro inesperado:", error);
-      setError("Erro inesperado ao excluir canal");
+      setError("❌ Erro inesperado ao excluir canal");
     } finally {
       setIsDeleting(false);
       setChannelToDelete(null);
@@ -90,11 +127,20 @@ const Sidebar = ({
   const handleSignOut = async () => {
     try {
       await signOut();
-      console.log("✅ Logout realizado com sucesso");
+      setSuccess("✅ Logout realizado com sucesso!");
+      setTimeout(() => setSuccess(""), 2000);
     } catch (error) {
       console.error("❌ Erro ao fazer logout:", error.message);
-      setError("Erro ao fazer logout");
+      setError("❌ Erro ao fazer logout");
     }
+  };
+
+  const getChannelStats = (channelId) => {
+    // Esta função pode ser expandida para mostrar estatísticas reais
+    return {
+      totalVideos: 0,
+      unwatched: 0,
+    };
   };
 
   return (
@@ -219,26 +265,50 @@ const Sidebar = ({
                 type="url"
                 placeholder="https://www.youtube.com/@nomedocanal"
                 value={channelUrl}
-                onChange={(e) => setChannelUrl(e.target.value)}
+                onChange={(e) => {
+                  setChannelUrl(e.target.value);
+                  setError("");
+                  setSuccess("");
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                disabled={isAdding}
               />
             </div>
 
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-2 rounded-md">
-                {error}
+              <div className="flex items-center space-x-2 text-sm text-yellow-800 bg-yellow-50 p-3 rounded-md border border-yellow-200">
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="flex items-center space-x-2 text-sm text-green-800 bg-green-50 p-3 rounded-md border border-green-200">
+                <CheckCircle size={16} />
+                <span>{success}</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isAdding}
-              className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
-              <Plus size={16} />
-              <span>{isAdding ? "Adicionando..." : "Adicionar Canal"}</span>
+              {isAdding ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Plus size={16} />
+              )}
+              <span>{isAdding ? "Verificando..." : "Adicionar Canal"}</span>
             </button>
           </form>
+
+          <div className="mt-4 p-3 bg-blue-50 rounded-md">
+            <p className="text-xs text-blue-700">
+              💡 <strong>Dica:</strong> O sistema verifica automaticamente se o
+              canal já existe e evita duplicatas.
+            </p>
+          </div>
         </div>
 
         <div className="p-4">
@@ -274,50 +344,61 @@ const Sidebar = ({
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {channels.map((channel) => (
-                <div
-                  key={channel.channel_id}
-                  className="flex items-center justify-between group p-2 rounded-md hover:bg-gray-50"
-                >
-                  <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <img
-                      src={channel.thumbnail_url}
-                      alt={channel.name}
-                      className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                      onError={(e) => {
-                        e.target.src =
-                          "https://via.placeholder.com/40/FF0000/FFFFFF?text=YT";
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {channel.name}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {channel.channel_id}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => confirmDeleteChannel(channel)}
-                    className="p-1 text-gray-400 hover:text-red-600 transition-colors ml-2 flex-shrink-0"
-                    title="Excluir canal"
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {channels.map((channel) => {
+                const stats = getChannelStats(channel.channel_id);
+                return (
+                  <div
+                    key={channel.channel_id}
+                    className="flex items-center justify-between group p-3 rounded-md hover:bg-gray-50 border border-gray-100"
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <img
+                        src={channel.thumbnail_url}
+                        alt={channel.name}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        onError={(e) => {
+                          e.target.src =
+                            "https://via.placeholder.com/40/FF0000/FFFFFF?text=YT";
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {channel.name}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {stats.unwatched} não assistidos • {stats.totalVideos}{" "}
+                          vídeos
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => confirmDeleteChannel(channel)}
+                      className="p-2 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                      title="Excluir canal"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Footer com informações da conta */}
+        {/* Footer com informações */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
           <div className="text-xs text-gray-500">
-            <p className="font-medium">Conta conectada com Google</p>
-            <p>ID: {user?.id?.substring(0, 8)}...</p>
+            <p className="font-medium">Sistema protegido contra duplicatas</p>
+            <p>
+              Canais: {channels.length} • Vídeos:{" "}
+              {channels.reduce(
+                (acc, channel) =>
+                  acc + getChannelStats(channel.channel_id).totalVideos,
+                0
+              )}
+            </p>
           </div>
         </div>
       </aside>

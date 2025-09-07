@@ -148,7 +148,7 @@ export const useChannels = () => {
       }
 
       // Agora buscar vídeos usando o channelId real
-      const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=5&order=date&type=video&key=${YOUTUBE_API_KEY}`;
+      const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=10&order=date&type=video&key=${YOUTUBE_API_KEY}`;
 
       console.log("📡 Buscando vídeos com URL:", apiUrl);
 
@@ -168,7 +168,6 @@ export const useChannels = () => {
           "ℹ️ Nenhum vídeo encontrado para o channelId:",
           actualChannelId
         );
-        console.log("📊 Resposta da API:", data);
         return [];
       }
 
@@ -203,12 +202,116 @@ export const useChannels = () => {
     }
   };
 
+  // Função para verificar se canal já existe
+  const checkChannelExists = async (channelId) => {
+    if (!channelId || !isAuthenticated()) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from("channels")
+        .select("channel_id")
+        .eq("channel_id", channelId)
+        .eq("user_id", getUserId())
+        .limit(1);
+
+      if (error) throw error;
+      return data && data.length > 0;
+    } catch (error) {
+      console.error("Erro ao verificar canal:", error);
+      return false;
+    }
+  };
+
+  // Função para adicionar vídeos com verificação de duplicidade
+  const addVideosWithDuplicationCheck = async (videos, channelId) => {
+    try {
+      const videoRecords = [];
+      const videoIdsToCheck = [];
+
+      // Preparar dados dos vídeos
+      for (const video of videos) {
+        const videoId = video.id.videoId || video.id;
+        videoIdsToCheck.push(videoId);
+
+        videoRecords.push({
+          video_id: videoId,
+          channel_id: channelId,
+          title: video.snippet.title,
+          description: video.snippet.description,
+          thumbnail_url:
+            video.snippet.thumbnails?.high?.url ||
+            video.snippet.thumbnails?.default?.url,
+          published_at: video.snippet.publishedAt,
+          user_id: getUserId(),
+        });
+      }
+
+      // Verificar vídeos duplicados
+      const { data: existingVideos, error: checkError } = await supabase
+        .from("videos")
+        .select("video_id")
+        .in("video_id", videoIdsToCheck)
+        .eq("user_id", getUserId());
+
+      if (checkError) {
+        console.error("Erro ao verificar vídeos duplicados:", checkError);
+        return 0;
+      }
+
+      const existingVideoIds = new Set(
+        existingVideos?.map((v) => v.video_id) || []
+      );
+      const uniqueVideos = videoRecords.filter(
+        (video) => !existingVideoIds.has(video.video_id)
+      );
+
+      if (uniqueVideos.length === 0) {
+        console.log("⏭️ Todos os vídeos já existem para o usuário");
+        return 0;
+      }
+
+      console.log(
+        `📹 Inserindo ${uniqueVideos.length} vídeos novos de ${videoRecords.length} encontrados`
+      );
+
+      // Inserir apenas vídeos não duplicados
+      const { error: videosError } = await supabase
+        .from("videos")
+        .insert(uniqueVideos);
+
+      if (videosError) {
+        console.error("Error inserting videos:", videosError);
+        return 0;
+      } else {
+        console.log(`✅ ${uniqueVideos.length} vídeos inseridos com sucesso`);
+        return uniqueVideos.length;
+      }
+    } catch (error) {
+      console.error("Erro no processo de adição de vídeos:", error);
+      return 0;
+    }
+  };
+
   const addChannel = async (channelData) => {
     try {
       if (!isAuthenticated()) {
         throw new Error(
           "Usuário não autenticado. Faça login para adicionar canais."
         );
+      }
+
+      // VERIFICAÇÃO DE DUPLICIDADE - Canal
+      const channelExists = await checkChannelExists(channelData.channel_id);
+      if (channelExists) {
+        console.log(
+          "⏭️ Canal já existe para este usuário:",
+          channelData.channel_id
+        );
+        return {
+          success: false,
+          error: "Este canal já está na sua lista",
+          code: "CHANNEL_ALREADY_EXISTS",
+        };
       }
 
       // Buscar informações reais do canal
@@ -245,52 +348,35 @@ export const useChannels = () => {
         .select();
 
       if (channelError) {
-        // Se for erro de duplicação, consideramos sucesso parcial
         if (channelError.code === "23505") {
-          console.log("Canal já existe no banco de dados");
-          await fetchChannels(); // Atualiza a lista
+          console.log(
+            "⏭️ Canal já existe no banco (duplicata):",
+            channelData.channel_id
+          );
           return {
-            success: true,
-            warning: "Canal já existia no sistema",
-            data: { channel_id: channelData.channel_id },
+            success: false,
+            error: "Este canal já está na sua lista",
+            code: "CHANNEL_ALREADY_EXISTS",
           };
         }
         throw channelError;
       }
 
       // Inserir vídeos no Supabase (se houver vídeos)
+      let videosAdded = 0;
       if (videos.length > 0) {
-        const videoRecords = videos.map((video) => {
-          const videoId = video.id.videoId || video.id;
-
-          return {
-            video_id: videoId,
-            channel_id: channelData.channel_id,
-            title: video.snippet.title,
-            description: video.snippet.description,
-            thumbnail_url:
-              video.snippet.thumbnails?.high?.url ||
-              video.snippet.thumbnails?.default?.url,
-            published_at: video.snippet.publishedAt,
-            user_id: getUserId(),
-          };
-        });
-
-        const { error: videosError } = await supabase
-          .from("videos")
-          .insert(videoRecords);
-
-        if (videosError) {
-          console.error("Error inserting videos:", videosError);
-          // Não lança erro, apenas registra o problema
-        }
+        videosAdded = await addVideosWithDuplicationCheck(
+          videos,
+          channelData.channel_id
+        );
       }
 
       await fetchChannels();
       return {
         success: true,
         data: channelResult[0],
-        videosAdded: videos.length,
+        videosAdded: videosAdded,
+        totalVideosFound: videos.length,
       };
     } catch (error) {
       console.error("Error adding channel:", error.message);
@@ -364,6 +450,7 @@ export const useChannels = () => {
     removeChannel,
     refreshChannels: fetchChannels,
     testChannelSearch,
+    checkChannelExists,
     isAuthenticated: isAuthenticated(),
   };
 };

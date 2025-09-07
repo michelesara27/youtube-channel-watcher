@@ -3,10 +3,12 @@ import { useUserSession } from "./hooks/useUserSession";
 import { useChannels } from "./hooks/useChannels";
 import { useVideos } from "./hooks/useVideos";
 import { useAuth } from "./contexts/AuthContext";
+import { useAchievements } from "./hooks/useAchievements";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import VideoGrid from "./components/VideoGrid";
 import Login from "./components/Login";
+import Celebration from "./components/Celebration";
 import "./index.css";
 
 function AppContent() {
@@ -24,26 +26,62 @@ function AppContent() {
 
   const {
     videos,
+    allVideos,
     watchedVideos,
     loading: videosLoading,
+    searchLoading,
+    searchTerm,
     toggleWatchedStatus,
+    refreshVideos,
+    updateVideoKeywords,
+    searchVideos,
+    clearSearch,
   } = useVideos(userSession);
 
-  const unreadCount = videos.filter(
+  // Sistema de conquistas
+  const { achievements, showCelebration, newAchievement, setShowCelebration } =
+    useAchievements(userSession, channels, watchedVideos, allVideos);
+
+  // Calcular número de vídeos não assistidos
+  const unreadCount = allVideos.filter(
     (video) => !watchedVideos.has(video.video_id)
   ).length;
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
 
-  // Debug: verificar estado de autenticação
+  // Efeito para recarregar vídeos quando canais forem atualizados
   useEffect(() => {
-    console.log("🔐 Estado de autenticação:", {
-      isAuthenticated,
-      user,
-      authLoading,
+    if (isAuthenticated) {
+      refreshVideos();
+    }
+  }, [isAuthenticated, channels.length]);
+
+  // Debug: monitorar estados
+  useEffect(() => {
+    console.log("🔍 App State:", {
+      authenticated: isAuthenticated,
+      user: user?.email,
+      channels: channels.length,
+      videos: videos.length,
+      allVideos: allVideos.length,
+      searchTerm,
+      loading: videosLoading || searchLoading,
+      achievements: Object.keys(achievements || {}).filter(
+        (key) => achievements[key]
+      ).length,
     });
-  }, [isAuthenticated, user, authLoading]);
+  }, [
+    isAuthenticated,
+    user,
+    channels.length,
+    videos.length,
+    allVideos.length,
+    searchTerm,
+    videosLoading,
+    searchLoading,
+    achievements,
+  ]);
 
   if (authLoading) {
     return (
@@ -77,18 +115,62 @@ function AppContent() {
           showWatched={showWatched}
           setShowWatched={setShowWatched}
           unreadCount={unreadCount}
+          searchTerm={searchTerm}
+          onClearSearch={clearSearch}
+          achievements={achievements}
         />
 
         <main className="flex-1 overflow-auto">
           <VideoGrid
             videos={videos}
+            allVideos={allVideos}
             watchedVideos={watchedVideos}
             showWatched={showWatched}
             toggleWatchedStatus={toggleWatchedStatus}
-            loading={videosLoading}
+            loading={videosLoading || searchLoading}
+            searchTerm={searchTerm}
+            onSearchChange={searchVideos}
+            onClearSearch={clearSearch}
+            onKeywordsUpdate={updateVideoKeywords}
           />
         </main>
+
+        {/* Footer com estatísticas */}
+        <footer className="bg-white border-t border-gray-200 px-6 py-3">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="flex space-x-4">
+              <span>📺 {channels.length} canais</span>
+              <span>🎬 {allVideos.length} vídeos</span>
+              <span>👀 {unreadCount} não assistidos</span>
+              <span>
+                🏆 {Object.values(achievements || {}).filter((a) => a).length}{" "}
+                conquistas
+              </span>
+              {searchTerm && (
+                <span className="text-blue-600">
+                  🔍 {videos.length} resultado(s) para "{searchTerm}"
+                </span>
+              )}
+            </div>
+            <div>
+              {videosLoading && (
+                <span className="flex items-center">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-2"></div>
+                  Carregando...
+                </span>
+              )}
+            </div>
+          </div>
+        </footer>
       </div>
+
+      {/* Celebração de conquista */}
+      {showCelebration && (
+        <Celebration
+          achievement={newAchievement}
+          onClose={() => setShowCelebration(false)}
+        />
+      )}
     </div>
   );
 }
