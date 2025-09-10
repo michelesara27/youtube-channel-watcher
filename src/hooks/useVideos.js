@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
 export const useVideos = (userSession) => {
   const [videos, setVideos] = useState([]);
@@ -8,13 +9,14 @@ export const useVideos = (userSession) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
+  const { userId } = useAuth(); // Obter userId do contexto de autenticação
 
   useEffect(() => {
-    if (userSession) {
+    if (userId) {
       fetchVideos();
       fetchWatchedVideos();
     }
-  }, [userSession]);
+  }, [userId]);
 
   // Debug: verificar vídeos carregados
   useEffect(() => {
@@ -24,10 +26,17 @@ export const useVideos = (userSession) => {
         "🔍 Vídeos com keywords:",
         allVideos.filter((v) => v.keywords && v.keywords.length > 0).length
       );
+      console.log("👤 User ID:", userId);
     }
-  }, [allVideos]);
+  }, [allVideos, userId]);
 
   const fetchVideos = async () => {
+    if (!userId) {
+      console.log("Usuário não autenticado, não é possível buscar vídeos");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -38,6 +47,7 @@ export const useVideos = (userSession) => {
           channels (name)
         `
         )
+        .eq("user_id", userId) // Filtrar por user_id
         .order("published_at", { ascending: false });
 
       if (error) throw error;
@@ -59,13 +69,13 @@ export const useVideos = (userSession) => {
   };
 
   const fetchWatchedVideos = async () => {
-    if (!userSession) return;
+    if (!userId) return;
 
     try {
       const { data, error } = await supabase
         .from("watched_videos")
         .select("video_id")
-        .eq("user_session", userSession);
+        .eq("user_id", userId); // Filtrar por user_id
 
       if (error) throw error;
 
@@ -77,12 +87,15 @@ export const useVideos = (userSession) => {
   };
 
   const markAsWatched = async (videoId) => {
-    if (!userSession) return;
+    if (!userId) return;
 
     try {
-      const { error } = await supabase
-        .from("watched_videos")
-        .insert([{ user_session: userSession, video_id: videoId }]);
+      const { error } = await supabase.from("watched_videos").insert([
+        {
+          user_id: userId, // Adicionar user_id
+          video_id: videoId,
+        },
+      ]);
 
       if (error) throw error;
 
@@ -94,13 +107,13 @@ export const useVideos = (userSession) => {
   };
 
   const markAsUnwatched = async (videoId) => {
-    if (!userSession) return;
+    if (!userId) return;
 
     try {
       const { error } = await supabase
         .from("watched_videos")
         .delete()
-        .eq("user_session", userSession)
+        .eq("user_id", userId) // Filtrar por user_id
         .eq("video_id", videoId);
 
       if (error) throw error;
@@ -199,6 +212,7 @@ export const useVideos = (userSession) => {
         )
         .or(`title.ilike.%${term}%,channel_id.ilike.%${term}%`)
         .contains("keywords", [term.toLowerCase()])
+        .eq("user_id", userId) // Filtrar por user_id
         .order("published_at", { ascending: false });
 
       if (error) throw error;
@@ -235,6 +249,7 @@ export const useVideos = (userSession) => {
         `
         )
         .contains("keywords", [keyword.toLowerCase()])
+        .eq("user_id", userId) // Filtrar por user_id
         .order("published_at", { ascending: false });
 
       if (error) throw error;

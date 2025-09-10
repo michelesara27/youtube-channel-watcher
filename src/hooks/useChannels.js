@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 
@@ -31,42 +32,19 @@ if (!YOUTUBE_API_KEY) {
   );
 }
 
-// Funções de autenticação customizada
-const isAuthenticated = () => {
-  const user = localStorage.getItem("googleUser");
-  return !!user;
-};
-
-const getUserId = () => {
-  try {
-    const user = JSON.parse(localStorage.getItem("googleUser") || "{}");
-    return user.id || "anonymous";
-  } catch {
-    return "anonymous";
-  }
-};
-
-const getUserEmail = () => {
-  try {
-    const user = JSON.parse(localStorage.getItem("googleUser") || "{}");
-    return user.email || "unknown@email.com";
-  } catch {
-    return "unknown@email.com";
-  }
-};
-
 export const useChannels = () => {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { userId, user } = useAuth(); // Obter userId do contexto de autenticação
 
   useEffect(() => {
-    if (isAuthenticated()) {
+    if (userId) {
       fetchChannels();
     } else {
       setLoading(false);
       setChannels([]);
     }
-  }, []);
+  }, [userId]);
 
   // Função para buscar informações do canal
   const fetchChannelInfo = async (channelId) => {
@@ -180,7 +158,7 @@ export const useChannels = () => {
   };
 
   const fetchChannels = async () => {
-    if (!isAuthenticated()) {
+    if (!userId) {
       console.log("Usuário não autenticado, não é possível buscar canais");
       return;
     }
@@ -190,7 +168,7 @@ export const useChannels = () => {
       const { data, error } = await supabase
         .from("channels")
         .select("*")
-        .eq("user_id", getUserId())
+        .eq("user_id", userId) // Filtrar por user_id
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -202,16 +180,16 @@ export const useChannels = () => {
     }
   };
 
-  // Função para verificar se canal já existe
+  // Função para verificar se canal já existe para este usuário
   const checkChannelExists = async (channelId) => {
-    if (!channelId || !isAuthenticated()) return false;
+    if (!channelId || !userId) return false;
 
     try {
       const { data, error } = await supabase
         .from("channels")
         .select("channel_id")
         .eq("channel_id", channelId)
-        .eq("user_id", getUserId())
+        .eq("user_id", userId) // Verificar por usuário específico
         .limit(1);
 
       if (error) throw error;
@@ -224,6 +202,11 @@ export const useChannels = () => {
 
   // Função para adicionar vídeos com verificação de duplicidade
   const addVideosWithDuplicationCheck = async (videos, channelId) => {
+    if (!userId) {
+      console.error("Usuário não autenticado, não é possível adicionar vídeos");
+      return 0;
+    }
+
     try {
       const videoRecords = [];
       const videoIdsToCheck = [];
@@ -242,16 +225,16 @@ export const useChannels = () => {
             video.snippet.thumbnails?.high?.url ||
             video.snippet.thumbnails?.default?.url,
           published_at: video.snippet.publishedAt,
-          user_id: getUserId(),
+          user_id: userId, // Adicionar user_id
         });
       }
 
-      // Verificar vídeos duplicados
+      // Verificar vídeos duplicados para este usuário
       const { data: existingVideos, error: checkError } = await supabase
         .from("videos")
         .select("video_id")
         .in("video_id", videoIdsToCheck)
-        .eq("user_id", getUserId());
+        .eq("user_id", userId); // Verificar apenas vídeos do usuário
 
       if (checkError) {
         console.error("Erro ao verificar vídeos duplicados:", checkError);
@@ -294,7 +277,7 @@ export const useChannels = () => {
 
   const addChannel = async (channelData) => {
     try {
-      if (!isAuthenticated()) {
+      if (!userId) {
         throw new Error(
           "Usuário não autenticado. Faça login para adicionar canais."
         );
@@ -341,8 +324,8 @@ export const useChannels = () => {
             channel_id: channelData.channel_id,
             name: channelInfo.name,
             thumbnail_url: channelInfo.thumbnail_url,
-            user_id: getUserId(),
-            user_email: getUserEmail(),
+            user_id: userId, // Usar o userId do contexto
+            user_email: user?.email || "unknown@email.com",
           },
         ])
         .select();
@@ -391,17 +374,30 @@ export const useChannels = () => {
 
   const removeChannel = async (channelId) => {
     try {
-      if (!isAuthenticated()) {
+      if (!userId) {
         throw new Error(
           "Usuário não autenticado. Faça login para remover canais."
         );
       }
 
+      // Primeiro, remover os vídeos associados ao canal deste usuário
+      const { error: videosError } = await supabase
+        .from("videos")
+        .delete()
+        .eq("channel_id", channelId)
+        .eq("user_id", userId);
+
+      if (videosError) {
+        console.error("Error removing videos:", videosError.message);
+        // Continuar mesmo se houver erro na remoção de vídeos
+      }
+
+      // Depois, remover o canal
       const { error } = await supabase
         .from("channels")
         .delete()
         .eq("channel_id", channelId)
-        .eq("user_id", getUserId());
+        .eq("user_id", userId);
 
       if (error) throw error;
 
@@ -451,7 +447,7 @@ export const useChannels = () => {
     refreshChannels: fetchChannels,
     testChannelSearch,
     checkChannelExists,
-    isAuthenticated: isAuthenticated(),
+    isAuthenticated: !!userId,
   };
 };
 
