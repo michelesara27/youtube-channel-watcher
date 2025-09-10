@@ -8,6 +8,7 @@ import {
   User,
   CheckCircle,
   AlertCircle,
+  Settings,
 } from "lucide-react";
 import {
   isValidYouTubeChannelUrl,
@@ -16,6 +17,7 @@ import {
   normalizeYouTubeUrl,
 } from "../utils/validation";
 import { useAuth } from "../contexts/AuthContext";
+import DashboardConfig from "./DashboardConfig";
 
 const Sidebar = ({
   isOpen,
@@ -31,6 +33,7 @@ const Sidebar = ({
   const [success, setSuccess] = useState("");
   const [channelToDelete, setChannelToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const { user, signOut } = useAuth();
 
   const handleAddChannel = async (e) => {
@@ -205,14 +208,21 @@ const Sidebar = ({
       )}
 
       <aside
-        className={`
-        fixed top-0 left-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform
-        lg:relative lg:translate-x-0 lg:shadow-none
-        ${isOpen ? "translate-x-0" : "-translate-x-full"}
-      `}
+        className={`fixed top-0 left-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform lg:relative lg:translate-x-0 lg:shadow-none ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Gerenciar Canais</h2>
+          <div className="flex items-center space-x-3">
+            <h2 className="text-lg font-semibold">Gerenciar Canais</h2>
+            <button
+              onClick={() => setShowDashboard(true)}
+              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Abrir Dashboard e Estatísticas"
+            >
+              <Settings size={18} />
+            </button>
+          </div>
           <button
             onClick={closeSidebar}
             className="p-1 rounded-md hover:bg-gray-100 lg:hidden"
@@ -402,6 +412,14 @@ const Sidebar = ({
           </div>
         </div>
       </aside>
+
+      {/* Dashboard de Configurações */}
+      {showDashboard && (
+        <DashboardConfig
+          isOpen={showDashboard}
+          onClose={() => setShowDashboard(false)}
+        />
+      )}
     </>
   );
 };
