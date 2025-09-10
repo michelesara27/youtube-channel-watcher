@@ -1,5 +1,4 @@
-// src/components/Header.jsx - Atualizado
-import { Menu, Eye, EyeOff, Trophy, X } from "lucide-react";
+import { Menu, Eye, EyeOff, Trophy, X, Filter } from "lucide-react";
 import { useState } from "react";
 import Badge from "./Badge";
 
@@ -8,9 +7,15 @@ const Header = ({
   showWatched,
   setShowWatched,
   unreadCount,
+  searchTerm,
+  onClearSearch,
   achievements,
+  activeFilter,
+  onClearFilter,
 }) => {
   const [showAchievements, setShowAchievements] = useState(false);
+
+  const filteredChannelsCount = activeFilter ? activeFilter.length : 0;
 
   return (
     <>
@@ -28,12 +33,31 @@ const Header = ({
         </div>
 
         <div className="flex items-center space-x-4">
+          {/* Contador de não assistidos */}
           <div className="hidden md:flex items-center space-x-2 bg-red-100 text-red-800 px-3 py-1 rounded-full">
             <span className="text-sm font-medium">
               {unreadCount} não assistidos
             </span>
           </div>
 
+          {/* Indicador de filtro ativo */}
+          {filteredChannelsCount > 0 && (
+            <div className="hidden md:flex items-center space-x-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+              <Filter size={14} />
+              <span className="text-sm font-medium">
+                {filteredChannelsCount} canal(ais)
+              </span>
+              <button
+                onClick={onClearFilter}
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                title="Remover filtro"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Botão de conquistas */}
           <button
             onClick={() => setShowAchievements(true)}
             className="flex items-center space-x-2 bg-yellow-100 text-yellow-800 px-3 py-2 rounded-md hover:bg-yellow-200 transition-colors relative"
@@ -48,6 +72,7 @@ const Header = ({
             )}
           </button>
 
+          {/* Botão mostrar/ocultar assistidos */}
           <button
             onClick={() => setShowWatched(!showWatched)}
             className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md transition-colors"
@@ -95,6 +120,11 @@ const Header = ({
                   achieved={achievements?.speed_watcher}
                 />
                 <Badge type="focused" achieved={achievements?.focused} />
+                <Badge
+                  type="marathon_watcher"
+                  achieved={achievements?.marathon_watcher}
+                />
+                <Badge type="explorer" achieved={achievements?.explorer} />
               </div>
 
               <div className="mt-8">
@@ -103,18 +133,51 @@ const Header = ({
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Canais adicionados</p>
+                    <p className="text-sm text-gray-600">
+                      Conquistas desbloqueadas
+                    </p>
                     <p className="text-2xl font-bold">
-                      {achievements?.channelsCount || 0}
+                      {
+                        Object.values(achievements || {}).filter((a) => a)
+                          .length
+                      }
                     </p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Vídeos assistidos</p>
+                    <p className="text-sm text-gray-600">Total de conquistas</p>
                     <p className="text-2xl font-bold">
-                      {achievements?.watchedCount || 0}
+                      {Object.keys(achievements || {}).length}
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">
+                  Como ganhar conquistas:
+                </h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>
+                    • <strong>Primeiro Canal</strong>: Adicione seu primeiro
+                    canal
+                  </li>
+                  <li>
+                    • <strong>Colecionador</strong>: Adicione 5 canais
+                  </li>
+                  <li>
+                    • <strong>Spectador</strong>: Assista 10 vídeos
+                  </li>
+                  <li>
+                    • <strong>Focado</strong>: Assista todos os vídeos de um
+                    canal
+                  </li>
+                  <li>
+                    • <strong>Maratonista</strong>: Assista 50 vídeos
+                  </li>
+                  <li>
+                    • <strong>Explorador</strong>: Adicione 10 canais
+                  </li>
+                </ul>
               </div>
             </div>
           </div>

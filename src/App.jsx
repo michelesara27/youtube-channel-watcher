@@ -4,7 +4,6 @@ import { useChannels } from "./hooks/useChannels";
 import { useVideos } from "./hooks/useVideos";
 import { useAuth } from "./contexts/AuthContext";
 import { useAchievements } from "./hooks/useAchievements";
-import AuthCallback from "./components/AuthCallback";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import VideoGrid from "./components/VideoGrid";
@@ -16,6 +15,7 @@ function AppContent() {
   const userSession = useUserSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showWatched, setShowWatched] = useState(false);
+  const [filteredChannels, setFilteredChannels] = useState(null);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
 
   const {
@@ -37,6 +37,7 @@ function AppContent() {
     updateVideoKeywords,
     searchVideos,
     clearSearch,
+    applyChannelFilter,
   } = useVideos(userSession);
 
   // Sistema de conquistas
@@ -51,10 +52,33 @@ function AppContent() {
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
 
+  // Função para lidar com o filtro de canais
+  const handleChannelsFilter = async (channelIds) => {
+    setFilteredChannels(channelIds.length > 0 ? channelIds : null);
+
+    if (channelIds.length > 0) {
+      await applyChannelFilter(channelIds);
+    } else {
+      await refreshVideos();
+    }
+  };
+
+  // Função para limpar o filtro
+  const clearFilter = async () => {
+    setFilteredChannels(null);
+    await refreshVideos();
+  };
+
   // Efeito para recarregar vídeos quando canais forem atualizados
   useEffect(() => {
     if (isAuthenticated) {
-      refreshVideos();
+      if (filteredChannels) {
+        // Se há filtro ativo, reaplicar o filtro
+        applyChannelFilter(filteredChannels);
+      } else {
+        // Caso contrário, recarregar todos os vídeos
+        refreshVideos();
+      }
     }
   }, [isAuthenticated, channels.length]);
 
@@ -67,6 +91,7 @@ function AppContent() {
       videos: videos.length,
       allVideos: allVideos.length,
       searchTerm,
+      filteredChannels: filteredChannels ? filteredChannels.length : 0,
       loading: videosLoading || searchLoading,
       achievements: Object.keys(achievements || {}).filter(
         (key) => achievements[key]
@@ -82,6 +107,7 @@ function AppContent() {
     videosLoading,
     searchLoading,
     achievements,
+    filteredChannels,
   ]);
 
   if (authLoading) {
@@ -108,6 +134,7 @@ function AppContent() {
         addChannel={addChannel}
         removeChannel={removeChannel}
         loading={channelsLoading}
+        onChannelsFilter={handleChannelsFilter}
       />
 
       <div className="flex-1 flex flex-col lg:ml-0">
@@ -119,6 +146,8 @@ function AppContent() {
           searchTerm={searchTerm}
           onClearSearch={clearSearch}
           achievements={achievements}
+          activeFilter={filteredChannels}
+          onClearFilter={clearFilter}
         />
 
         <main className="flex-1 overflow-auto">
@@ -133,6 +162,7 @@ function AppContent() {
             onSearchChange={searchVideos}
             onClearSearch={clearSearch}
             onKeywordsUpdate={updateVideoKeywords}
+            filteredChannels={filteredChannels}
           />
         </main>
 
@@ -147,14 +177,19 @@ function AppContent() {
                 🏆 {Object.values(achievements || {}).filter((a) => a).length}{" "}
                 conquistas
               </span>
-              {searchTerm && (
+              {filteredChannels && (
                 <span className="text-blue-600">
-                  🔍 {videos.length} resultado(s) para "{searchTerm}"
+                  🔍 Filtro: {filteredChannels.length} canal(ais)
+                </span>
+              )}
+              {searchTerm && (
+                <span className="text-green-600">
+                  📋 {videos.length} resultado(s) para "{searchTerm}"
                 </span>
               )}
             </div>
             <div>
-              {videosLoading && (
+              {(videosLoading || searchLoading) && (
                 <span className="flex items-center">
                   <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-2"></div>
                   Carregando...

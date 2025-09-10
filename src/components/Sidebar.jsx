@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   X,
   Plus,
@@ -9,6 +9,7 @@ import {
   CheckCircle,
   AlertCircle,
   Settings,
+  Filter,
 } from "lucide-react";
 import {
   isValidYouTubeChannelUrl,
@@ -26,6 +27,7 @@ const Sidebar = ({
   addChannel,
   removeChannel,
   loading,
+  onChannelsFilter,
 }) => {
   const [channelUrl, setChannelUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -34,7 +36,25 @@ const Sidebar = ({
   const [channelToDelete, setChannelToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState(new Set());
   const { user, signOut } = useAuth();
+
+  // Atualizar seleção quando os canais mudarem
+  useEffect(() => {
+    // Manter apenas os canais selecionados que ainda existem
+    setSelectedChannels((prev) => {
+      const existingChannelIds = new Set(channels.map((c) => c.channel_id));
+      const newSelection = new Set();
+
+      prev.forEach((channelId) => {
+        if (existingChannelIds.has(channelId)) {
+          newSelection.add(channelId);
+        }
+      });
+
+      return newSelection;
+    });
+  }, [channels]);
 
   const handleAddChannel = async (e) => {
     e.preventDefault();
@@ -115,6 +135,13 @@ const Sidebar = ({
       if (result.success) {
         setSuccess("✅ Canal removido com sucesso!");
         setTimeout(() => setSuccess(""), 3000);
+
+        // Remover da seleção se estava selecionado
+        setSelectedChannels((prev) => {
+          const newSelection = new Set(prev);
+          newSelection.delete(channelToDelete.channel_id);
+          return newSelection;
+        });
       } else {
         setError("❌ " + (result.error || "Erro ao excluir canal"));
       }
@@ -136,6 +163,35 @@ const Sidebar = ({
       console.error("❌ Erro ao fazer logout:", error.message);
       setError("❌ Erro ao fazer logout");
     }
+  };
+
+  const toggleChannelSelection = (channelId, isSelected) => {
+    setSelectedChannels((prev) => {
+      const newSelection = new Set(prev);
+      if (isSelected) {
+        newSelection.add(channelId);
+      } else {
+        newSelection.delete(channelId);
+      }
+      return newSelection;
+    });
+  };
+
+  const toggleAllChannels = (selectAll) => {
+    if (selectAll) {
+      setSelectedChannels(
+        new Set(channels.map((channel) => channel.channel_id))
+      );
+    } else {
+      setSelectedChannels(new Set());
+    }
+  };
+
+  const applyFilter = () => {
+    if (typeof onChannelsFilter === "function") {
+      onChannelsFilter(Array.from(selectedChannels));
+    }
+    closeSidebar();
   };
 
   const getChannelStats = (channelId) => {
@@ -322,9 +378,30 @@ const Sidebar = ({
         </div>
 
         <div className="p-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">
-            Meus Canais ({channels.length})
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">
+              Meus Canais ({channels.length})
+            </h3>
+
+            {channels.length > 0 && (
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => toggleAllChannels(true)}
+                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-200 rounded transition-colors"
+                  title="Selecionar todos"
+                >
+                  Todos
+                </button>
+                <button
+                  onClick={() => toggleAllChannels(false)}
+                  className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded transition-colors"
+                  title="Limpar seleção"
+                >
+                  Limpar
+                </button>
+              </div>
+            )}
+          </div>
 
           {loading ? (
             <div className="space-y-3">
@@ -333,6 +410,7 @@ const Sidebar = ({
                   key={i}
                   className="flex items-center space-x-3 animate-pulse"
                 >
+                  <div className="w-5 h-5 bg-gray-200 rounded"></div>
                   <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
                   <div className="flex-1">
                     <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -354,24 +432,43 @@ const Sidebar = ({
               </p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-2 max-h-96 overflow-y-auto">
               {channels.map((channel) => {
                 const stats = getChannelStats(channel.channel_id);
+                const isSelected = selectedChannels.has(channel.channel_id);
+
                 return (
                   <div
                     key={channel.channel_id}
-                    className="flex items-center justify-between group p-3 rounded-md hover:bg-gray-50 border border-gray-100"
+                    className={`flex items-center justify-between group p-2 rounded-md border transition-colors ${
+                      isSelected
+                        ? "bg-blue-50 border-blue-200"
+                        : "bg-white border-gray-100 hover:bg-gray-50"
+                    }`}
                   >
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) =>
+                          toggleChannelSelection(
+                            channel.channel_id,
+                            e.target.checked
+                          )
+                        }
+                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+
                       <img
                         src={channel.thumbnail_url}
                         alt={channel.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                         onError={(e) => {
                           e.target.src =
-                            "https://via.placeholder.com/40/FF0000/FFFFFF?text=YT";
+                            "https://via.placeholder.com/32/FF0000/FFFFFF?text=YT";
                         }}
                       />
+
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">
                           {channel.name}
@@ -385,10 +482,10 @@ const Sidebar = ({
 
                     <button
                       onClick={() => confirmDeleteChannel(channel)}
-                      className="p-2 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                      className="p-1 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 ml-2"
                       title="Excluir canal"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 );
@@ -399,16 +496,27 @@ const Sidebar = ({
 
         {/* Footer com informações */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="text-xs text-gray-500">
-            <p className="font-medium">Sistema protegido contra duplicatas</p>
-            <p>
-              Canais: {channels.length} • Vídeos:{" "}
-              {channels.reduce(
-                (acc, channel) =>
-                  acc + getChannelStats(channel.channel_id).totalVideos,
-                0
-              )}
-            </p>
+          <div className="text-xs text-gray-500 space-y-2">
+            <div className="flex justify-between">
+              <span className="font-medium">Canais: {channels.length}</span>
+              <span
+                className={
+                  selectedChannels.size > 0 ? "text-blue-600 font-medium" : ""
+                }
+              >
+                Selecionados: {selectedChannels.size}
+              </span>
+            </div>
+
+            {selectedChannels.size > 0 && (
+              <button
+                onClick={applyFilter}
+                className="w-full flex items-center justify-center space-x-2 bg-blue-600 text-white py-2 px-3 rounded-md text-xs hover:bg-blue-700 transition-colors"
+              >
+                <Filter size={14} />
+                <span>Filtrar {selectedChannels.size} canal(ais)</span>
+              </button>
+            )}
           </div>
         </div>
       </aside>

@@ -30,7 +30,7 @@ export const useVideos = (userSession) => {
     }
   }, [allVideos, userId]);
 
-  const fetchVideos = async () => {
+  const fetchVideos = async (channelFilter = null) => {
     if (!userId) {
       console.log("Usuário não autenticado, não é possível buscar vídeos");
       setLoading(false);
@@ -39,7 +39,8 @@ export const useVideos = (userSession) => {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+
+      let query = supabase
         .from("videos")
         .select(
           `
@@ -47,8 +48,16 @@ export const useVideos = (userSession) => {
           channels (name)
         `
         )
-        .eq("user_id", userId) // Filtrar por user_id
-        .order("published_at", { ascending: false });
+        .eq("user_id", userId);
+
+      // Aplicar filtro por canais se fornecido
+      if (channelFilter && channelFilter.length > 0) {
+        query = query.in("channel_id", channelFilter);
+      }
+
+      query = query.order("published_at", { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -134,6 +143,50 @@ export const useVideos = (userSession) => {
       markAsUnwatched(videoId);
     } else {
       markAsWatched(videoId);
+    }
+  };
+
+  // Função para aplicar filtro por canais
+  const applyChannelFilter = async (channelIds) => {
+    if (!channelIds || channelIds.length === 0) {
+      // Se não há filtro, mostrar todos os vídeos
+      setVideos(allVideos);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("videos")
+        .select(
+          `
+          *,
+          channels (name)
+        `
+        )
+        .eq("user_id", userId)
+        .in("channel_id", channelIds)
+        .order("published_at", { ascending: false });
+
+      if (error) throw error;
+
+      const videosWithChannelName = data.map((video) => ({
+        ...video,
+        channel_name: video.channels?.name || "Canal desconhecido",
+        keywords: Array.isArray(video.keywords) ? video.keywords : [],
+      }));
+
+      setVideos(videosWithChannelName);
+    } catch (error) {
+      console.error("Error filtering videos by channel:", error);
+      // Fallback para filtro local
+      const filtered = allVideos.filter((video) =>
+        channelIds.includes(video.channel_id)
+      );
+      setVideos(filtered);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -297,6 +350,11 @@ export const useVideos = (userSession) => {
     setVideos(allVideos);
   };
 
+  // Função para recarregar todos os vídeos (sem filtros)
+  const refreshVideos = async () => {
+    await fetchVideos();
+  };
+
   return {
     // Vídeos atuais (filtrados ou não)
     videos,
@@ -311,12 +369,13 @@ export const useVideos = (userSession) => {
     searchTerm,
     // Funções principais
     toggleWatchedStatus,
-    refreshVideos: fetchVideos,
+    refreshVideos,
     updateVideoKeywords,
     searchVideos,
     advancedSearch,
     searchVideosByKeyword,
     clearSearch,
+    applyChannelFilter, // Nova função para filtro por canais
     // Funções utilitárias
     getAllUniqueKeywords,
     getKeywordStats,
