@@ -46,6 +46,37 @@ export const useChannels = () => {
     }
   }, [userId]);
 
+  // Função para garantir que o usuário existe na tabela users
+  const ensureUserExists = async (
+    userId,
+    userEmail,
+    userName = null,
+    userPicture = null
+  ) => {
+    try {
+      const { error } = await supabase.from("users").upsert(
+        {
+          id: userId,
+          email: userEmail,
+          name: userName,
+          picture: userPicture,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "id",
+          ignoreDuplicates: false,
+        }
+      );
+
+      if (error) {
+        console.warn("Erro ao garantir usuário:", error);
+        // Não throw error aqui, pois não é crítico para a funcionalidade
+      }
+    } catch (error) {
+      console.warn("Erro na função ensureUserExists:", error);
+    }
+  };
+
   // Função para buscar informações do canal
   const fetchChannelInfo = async (channelId) => {
     if (!YOUTUBE_API_KEY) {
@@ -373,6 +404,14 @@ export const useChannels = () => {
         };
       }
 
+      // Garantir que o usuário existe na tabela users antes de inserir o canal
+      await ensureUserExists(
+        userId,
+        user?.email || "unknown@email.com",
+        user?.user_metadata?.full_name || user?.name,
+        user?.user_metadata?.avatar_url || user?.picture
+      );
+
       // Buscar informações reais do canal
       const channelInfo = await fetchChannelInfo(channelData.channel_id);
 
@@ -523,7 +562,7 @@ export const useChannels = () => {
     refreshChannels: fetchChannels,
     testChannelSearch,
     checkChannelExists,
-    scanChannelsForNewVideos, // Nova função adicionada
+    scanChannelsForNewVideos,
     isAuthenticated: !!userId,
   };
 };
