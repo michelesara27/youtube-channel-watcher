@@ -126,7 +126,7 @@ export const useChannels = () => {
       }
 
       // Agora buscar vídeos usando o channelId real
-      const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=10&order=date&type=video&key=${YOUTUBE_API_KEY}`;
+      const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=20&order=date&type=video&key=${YOUTUBE_API_KEY}`;
 
       console.log("📡 Buscando vídeos com URL:", apiUrl);
 
@@ -225,7 +225,7 @@ export const useChannels = () => {
             video.snippet.thumbnails?.high?.url ||
             video.snippet.thumbnails?.default?.url,
           published_at: video.snippet.publishedAt,
-          user_id: userId, // Adicionar user_id
+          user_id: userId,
         });
       }
 
@@ -234,7 +234,7 @@ export const useChannels = () => {
         .from("videos")
         .select("video_id")
         .in("video_id", videoIdsToCheck)
-        .eq("user_id", userId); // Verificar apenas vídeos do usuário
+        .eq("user_id", userId);
 
       if (checkError) {
         console.error("Erro ao verificar vídeos duplicados:", checkError);
@@ -254,7 +254,7 @@ export const useChannels = () => {
       }
 
       console.log(
-        `📹 Inserindo ${uniqueVideos.length} vídeos novos de ${videoRecords.length} encontrados`
+        `📹 Encontrados ${uniqueVideos.length} vídeos novos de ${videoRecords.length} vídeos no canal`
       );
 
       // Inserir apenas vídeos não duplicados
@@ -272,6 +272,82 @@ export const useChannels = () => {
     } catch (error) {
       console.error("Erro no processo de adição de vídeos:", error);
       return 0;
+    }
+  };
+
+  // Função para escanear canais em busca de novos vídeos
+  const scanChannelsForNewVideos = async () => {
+    if (!userId || channels.length === 0) {
+      throw new Error("Nenhum canal para escanear");
+    }
+
+    const results = {
+      scannedChannels: 0,
+      totalNewVideos: 0,
+      channelsWithNewVideos: 0,
+      channelDetails: [],
+    };
+
+    try {
+      // Escanear cada canal individualmente
+      for (const channel of channels) {
+        try {
+          console.log(`🔍 Escaneando canal: ${channel.name}`);
+
+          // Buscar vídeos recentes do canal
+          const videos = await fetchChannelVideos(channel.channel_id);
+
+          if (videos && videos.length > 0) {
+            // Adicionar vídeos com verificação de duplicidade
+            const newVideosCount = await addVideosWithDuplicationCheck(
+              videos,
+              channel.channel_id
+            );
+
+            results.scannedChannels++;
+            results.totalNewVideos += newVideosCount;
+
+            if (newVideosCount > 0) {
+              results.channelsWithNewVideos++;
+            }
+
+            results.channelDetails.push({
+              channelId: channel.channel_id,
+              channelName: channel.name,
+              newVideos: newVideosCount,
+              totalVideos: videos.length,
+            });
+          } else {
+            results.scannedChannels++;
+            results.channelDetails.push({
+              channelId: channel.channel_id,
+              channelName: channel.name,
+              newVideos: 0,
+              totalVideos: 0,
+            });
+          }
+
+          // Pequeno delay para evitar rate limiting
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (channelError) {
+          console.error(
+            `Erro ao escanear canal ${channel.name}:`,
+            channelError
+          );
+          results.channelDetails.push({
+            channelId: channel.channel_id,
+            channelName: channel.name,
+            newVideos: 0,
+            totalVideos: 0,
+            error: channelError.message,
+          });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error("Erro no scan completo:", error);
+      throw error;
     }
   };
 
@@ -447,6 +523,7 @@ export const useChannels = () => {
     refreshChannels: fetchChannels,
     testChannelSearch,
     checkChannelExists,
+    scanChannelsForNewVideos, // Nova função adicionada
     isAuthenticated: !!userId,
   };
 };

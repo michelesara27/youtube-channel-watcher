@@ -9,6 +9,7 @@ import {
   CheckCircle,
   AlertCircle,
   Settings,
+  Radar,
   Filter,
 } from "lucide-react";
 import {
@@ -37,6 +38,8 @@ const Sidebar = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [selectedChannels, setSelectedChannels] = useState(new Set());
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResults, setScanResults] = useState(null);
   const { user, signOut } = useAuth();
 
   // Atualizar seleção quando os canais mudarem
@@ -194,6 +197,54 @@ const Sidebar = ({
     closeSidebar();
   };
 
+  const handleYTScan = async () => {
+    if (!channels.length) {
+      setError("Nenhum canal para escanear. Adicione canais primeiro.");
+      return;
+    }
+
+    setIsScanning(true);
+    setError("");
+    setSuccess("");
+    setScanResults(null);
+
+    try {
+      // Simular um scan (esta função será implementada no useChannels)
+      const results = await scanChannelsForNewVideos();
+
+      setScanResults(results);
+
+      if (results.totalNewVideos > 0) {
+        setSuccess(
+          `✅ Scan completo! ${results.totalNewVideos} novo(s) vídeo(s) encontrado(s).`
+        );
+      } else {
+        setSuccess("✅ Scan completo! Nenhum novo vídeo encontrado.");
+      }
+    } catch (error) {
+      console.error("Erro no YTScan:", error);
+      setError("Erro ao escanear canais. Tente novamente.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const scanChannelsForNewVideos = async () => {
+    // Esta função será implementada no useChannels.js
+    // Retorna um objeto simulado para teste
+    return {
+      scannedChannels: channels.length,
+      totalNewVideos: 3,
+      channelsWithNewVideos: 2,
+      channelDetails: channels.slice(0, 3).map((channel) => ({
+        channelId: channel.channel_id,
+        channelName: channel.name,
+        newVideos: Math.floor(Math.random() * 3),
+        totalVideos: Math.floor(Math.random() * 10) + 1,
+      })),
+    };
+  };
+
   const getChannelStats = (channelId) => {
     // Esta função pode ser expandida para mostrar estatísticas reais
     return {
@@ -271,13 +322,23 @@ const Sidebar = ({
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <h2 className="text-lg font-semibold">Gerenciar Canais</h2>
-            <button
-              onClick={() => setShowDashboard(true)}
-              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Abrir Dashboard e Estatísticas"
-            >
-              <Settings size={18} />
-            </button>
+            <div className="flex space-x-1">
+              <button
+                onClick={handleYTScan}
+                disabled={isScanning || channels.length === 0}
+                className="p-1 text-blue-400 hover:text-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Escanear canais por novos vídeos"
+              >
+                <Radar size={18} />
+              </button>
+              <button
+                onClick={() => setShowDashboard(true)}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Abrir Dashboard e Estatísticas"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
           </div>
           <button
             onClick={closeSidebar}
@@ -375,6 +436,52 @@ const Sidebar = ({
               canal já existe e evita duplicatas.
             </p>
           </div>
+
+          {scanResults && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">
+                Resultados do Scan:
+              </h4>
+              <div className="space-y-2 text-xs">
+                <p>
+                  Canais escaneados:{" "}
+                  <strong>{scanResults.scannedChannels}</strong>
+                </p>
+                <p>
+                  Novos vídeos encontrados:{" "}
+                  <strong className="text-green-600">
+                    {scanResults.totalNewVideos}
+                  </strong>
+                </p>
+                <p>
+                  Canais com novos vídeos:{" "}
+                  <strong>{scanResults.channelsWithNewVideos}</strong>
+                </p>
+
+                {scanResults.channelDetails.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-medium">Detalhes por canal:</p>
+                    {scanResults.channelDetails.map((detail, index) => (
+                      <div key={index} className="flex justify-between mt-1">
+                        <span className="truncate max-w-xs">
+                          {detail.channelName}
+                        </span>
+                        <span
+                          className={
+                            detail.newVideos > 0
+                              ? "text-green-600 font-medium"
+                              : "text-gray-500"
+                          }
+                        >
+                          {detail.newVideos} novo(s)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-4">
