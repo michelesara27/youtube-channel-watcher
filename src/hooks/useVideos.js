@@ -101,7 +101,7 @@ export const useVideos = (userSession) => {
     try {
       const { error } = await supabase.from("watched_videos").insert([
         {
-          user_id: userId, // Adicionar user_id
+          user_id: userId, // Usar user_id em vez de user_session
           video_id: videoId,
         },
       ]);
