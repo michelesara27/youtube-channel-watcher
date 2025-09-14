@@ -83,16 +83,48 @@ export const useChannels = () => {
 
   // Buscar últimos vídeos do canal via YouTube Search API
   const fetchChannelVideos = async (channelId) => {
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${YOUTUBE_API_KEY}`;
-    const response = await fetch(url);
-    const data = await response.json();
+    try {
+      let actualChannelId = channelId;
 
-    if (data.error) {
-      console.error("Erro na API de vídeos:", data.error);
+      // Se for handle (@), converter para channelId real
+      if (channelId.startsWith("@")) {
+        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
+          channelId.replace("@", "")
+        )}&key=${YOUTUBE_API_KEY}`;
+
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
+
+        if (
+          searchData.error ||
+          !searchData.items ||
+          searchData.items.length === 0
+        ) {
+          console.warn("⚠️ Nenhum canal encontrado para:", channelId);
+          return [];
+        }
+
+        actualChannelId = searchData.items[0].id.channelId; // <- ID real (UCxxxx)
+        console.log("🔄 Handle convertido:", channelId, "➡️", actualChannelId);
+      }
+
+      // Agora sim, buscar os vídeos
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=10&order=date&type=video&key=${YOUTUBE_API_KEY}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Erro na API de vídeos:", data.error);
+        return [];
+      }
+
+      console.log("✅ Vídeos encontrados:", data.items?.length || 0);
+      return data.items || [];
+    } catch (err) {
+      console.error("❌ Erro ao buscar vídeos:", err.message);
       return [];
     }
-
-    return data.items || [];
   };
 
   // Adicionar vídeos sem duplicar
