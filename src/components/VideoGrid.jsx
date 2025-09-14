@@ -1,3 +1,4 @@
+// src/components/VideoGrid.jsx
 import { useState } from "react";
 import { Search, X, CornerDownLeft } from "lucide-react";
 import VideoCard from "./VideoCard";

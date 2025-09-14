@@ -1,3 +1,4 @@
+// src/components/Sidebar.jsx
 import { useState, useEffect } from "react";
 import {
   X,

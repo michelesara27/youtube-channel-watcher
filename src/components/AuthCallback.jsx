@@ -1,3 +1,4 @@
+// src/components/AuthCallback.jsx
 import { useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 

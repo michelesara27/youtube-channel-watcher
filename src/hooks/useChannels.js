@@ -1,30 +1,15 @@
+// src/hooks/useChannels.js
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 
-// Verificar se a API Key está configurada mas é inválida
-if (YOUTUBE_API_KEY && YOUTUBE_API_KEY.length < 20) {
-  console.warn("⚠️ API Key do YouTube parece ser inválida (muito curta)");
-  console.log("💡 A API Key deve ter cerca de 40 caracteres");
-}
-
-if (YOUTUBE_API_KEY && YOUTUBE_API_KEY.includes(" ")) {
-  console.warn("⚠️ API Key do YouTube pode conter espaços indesejados");
-}
-
-// Verificação mais robusta da API Key
+// Verificações básicas da API Key
 if (!YOUTUBE_API_KEY) {
   console.error("❌ ERRO CRÍTICO: VITE_YOUTUBE_API_KEY não está configurada");
-  console.log("💡 Adicione no arquivo .env:");
-  console.log("VITE_YOUTUBE_API_KEY=sua_chave_aqui");
 } else if (YOUTUBE_API_KEY.length < 39) {
-  console.warn(
-    "⚠️ API Key parece muito curta:",
-    YOUTUBE_API_KEY.length,
-    "caracteres"
-  );
+  console.warn("⚠️ API Key parece muito curta:", YOUTUBE_API_KEY.length);
 } else {
   console.log(
     "✅ API Key configurada:",
@@ -35,7 +20,7 @@ if (!YOUTUBE_API_KEY) {
 export const useChannels = () => {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { userId, user } = useAuth(); // Obter userId do contexto de autenticação
+  const { userId, user } = useAuth();
 
   useEffect(() => {
     if (userId) {
@@ -46,608 +31,181 @@ export const useChannels = () => {
     }
   }, [userId]);
 
-  // Função para garantir que o usuário existe na tabela users
-  const ensureUserExists = async (
-    userId,
-    userEmail,
-    userName = null,
-    userPicture = null
-  ) => {
-    try {
-      const { error } = await supabase.from("users").upsert(
-        {
-          id: userId,
-          email: userEmail,
-          name: userName,
-          picture: userPicture,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "id",
-          ignoreDuplicates: false,
-        }
-      );
-
-      if (error) {
-        console.warn("Erro ao garantir usuário:", error);
-        // Não throw error aqui, pois não é crítico para a funcionalidade
-      }
-    } catch (error) {
-      console.warn("Erro na função ensureUserExists:", error);
-    }
-  };
-
-  // Função para buscar informações do canal
-  const fetchChannelInfo = async (channelId) => {
-    if (!YOUTUBE_API_KEY) {
-      throw new Error("API Key do YouTube não configurada");
-    }
-
-    try {
-      let apiUrl = "";
-
-      if (channelId.startsWith("@")) {
-        const handle = channelId.replace("@", "");
-        apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
-          handle
-        )}&key=${YOUTUBE_API_KEY}`;
-      } else {
-        apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${YOUTUBE_API_KEY}`;
-      }
-
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-
-      if (data.error && data.error.code === 400) {
-        throw new Error("API Key do YouTube inválida");
-      }
-
-      if (data.error || !data.items || data.items.length === 0) {
-        throw new Error("Canal não encontrado na API do YouTube");
-      }
-
-      const channelInfo = data.items[0].snippet;
-
-      return {
-        name: channelInfo.title,
-        thumbnail_url:
-          channelInfo.thumbnails?.default?.url ||
-          "https://via.placeholder.com/150/FF0000/FFFFFF?text=YT",
-      };
-    } catch (error) {
-      console.error("Erro detalhado ao buscar informações do canal:", error);
-      throw new Error(`Erro ao buscar informações do canal: ${error.message}`);
-    }
-  };
-
-  // Função para buscar os últimos vídeos de um canal - CORRIGIDA
-  const fetchChannelVideos = async (channelId) => {
-    if (!YOUTUBE_API_KEY) {
-      throw new Error("API Key do YouTube não configurada");
-    }
-
-    try {
-      let actualChannelId = channelId;
-      let channelName = "";
-
-      // Se for um @handle, primeiro precisamos obter o channelId real
-      if (channelId.startsWith("@")) {
-        console.log("🔍 Convertendo @handle para channelId real:", channelId);
-
-        // Buscar o channelId real usando o handle
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
-          channelId
-        )}&key=${YOUTUBE_API_KEY}`;
-
-        console.log("📡 Buscando channelId real com URL:", searchUrl);
-
-        const searchResponse = await fetch(searchUrl);
-        const searchData = await searchResponse.json();
-
-        if (searchData.error) {
-          console.error("Erro na API de busca:", searchData.error);
-          return [];
-        }
-
-        if (!searchData.items || searchData.items.length === 0) {
-          console.warn("Nenhum canal encontrado para:", channelId);
-          return [];
-        }
-
-        // Encontrar o canal mais relevante (com mais correspondências)
-        const handleToFind = channelId.replace("@", "").toLowerCase();
-        const relevantChannel = searchData.items.find(
-          (item) =>
-            item.snippet.channelTitle.toLowerCase().includes(handleToFind) ||
-            item.snippet.title.toLowerCase().includes(handleToFind)
-        );
-
-        if (!relevantChannel) {
-          console.warn(
-            "Não foi possível encontrar um canal relevante para:",
-            channelId
-          );
-          return [];
-        }
-
-        actualChannelId = relevantChannel.id.channelId;
-        channelName = relevantChannel.snippet.channelTitle;
-        console.log(
-          "✅ ChannelId encontrado:",
-          actualChannelId,
-          "Nome:",
-          channelName
-        );
-      }
-
-      // Buscar vídeos do canal
-      const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=20&order=date&type=video&key=${YOUTUBE_API_KEY}`;
-
-      console.log("📡 Buscando vídeos com URL:", apiUrl);
-
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-
-      if (data.error) {
-        console.error("Erro na API de vídeos:", data.error);
-        return [];
-      }
-
-      if (!data.items || data.items.length === 0) {
-        console.warn(
-          "ℹ️ Nenhum vídeo encontrado para o channelId:",
-          actualChannelId
-        );
-
-        // Tentar método alternativo: search por vídeos do canal
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
-          channelName || channelId
-        )}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`;
-
-        console.log("🔄 Tentando busca alternativa com URL:", searchUrl);
-
-        const searchResponse = await fetch(searchUrl);
-        const searchData = await searchResponse.json();
-
-        if (searchData.items && searchData.items.length > 0) {
-          // Filtrar apenas vídeos do canal correto
-          const channelVideos = searchData.items.filter(
-            (item) =>
-              item.snippet.channelId === actualChannelId ||
-              item.snippet.channelTitle.includes(
-                channelName || channelId.replace("@", "")
-              )
-          );
-
-          console.log(
-            "📹 Vídeos encontados via busca alternativa:",
-            channelVideos.length
-          );
-          return channelVideos;
-        }
-
-        return [];
-      }
-
-      console.log("✅ Vídeos encontrados:", data.items.length);
-      return data.items;
-    } catch (error) {
-      console.error("❌ Erro ao buscar vídeos:", error.message);
-      return [];
-    }
-  };
-
+  // Buscar lista de canais do usuário
   const fetchChannels = async () => {
-    if (!userId) {
-      console.log("Usuário não autenticado, não é possível buscar canais");
-      return;
-    }
+    if (!userId) return;
 
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from("channels")
         .select("*")
-        .eq("user_id", userId) // Filtrar por user_id
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       setChannels(data || []);
-    } catch (error) {
-      console.error("Error fetching channels:", error.message);
+    } catch (err) {
+      console.error("Erro ao buscar canais:", err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Função para verificar se canal já existe para este usuário
-  const checkChannelExists = async (channelId) => {
-    if (!channelId || !userId) return false;
+  // Buscar informações de um canal
+  const fetchChannelInfo = async (channelId) => {
+    let apiUrl = "";
 
-    try {
-      const { data, error } = await supabase
-        .from("channels")
-        .select("channel_id")
-        .eq("channel_id", channelId)
-        .eq("user_id", userId) // Verificar por usuário específico
-        .limit(1);
-
-      if (error) throw error;
-      return data && data.length > 0;
-    } catch (error) {
-      console.error("Erro ao verificar canal:", error);
-      return false;
-    }
-  };
-
-  // Função para adicionar vídeos com verificação de duplicidade
-  const addVideosWithDuplicationCheck = async (videos, channelId) => {
-    if (!userId) {
-      console.error("Usuário não autenticado, não é possível adicionar vídeos");
-      return 0;
+    if (channelId.startsWith("@")) {
+      const handle = channelId.replace("@", "");
+      apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
+        handle
+      )}&key=${YOUTUBE_API_KEY}`;
+    } else {
+      apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${YOUTUBE_API_KEY}`;
     }
 
-    try {
-      const videoRecords = [];
-      const videoIdsToCheck = [];
+    const response = await fetch(apiUrl);
+    const data = await response.json();
 
-      // Preparar dados dos vídeos
-      for (const video of videos) {
-        const videoId = video.id.videoId || video.id;
-        videoIdsToCheck.push(videoId);
-
-        videoRecords.push({
-          video_id: videoId,
-          channel_id: channelId,
-          title: video.snippet.title,
-          description: video.snippet.description,
-          thumbnail_url:
-            video.snippet.thumbnails?.high?.url ||
-            video.snippet.thumbnails?.default?.url,
-          published_at: video.snippet.publishedAt,
-          user_id: userId,
-        });
-      }
-
-      // Verificar vídeos duplicados para este usuário
-      const { data: existingVideos, error: checkError } = await supabase
-        .from("videos")
-        .select("video_id")
-        .in("video_id", videoIdsToCheck)
-        .eq("user_id", userId);
-
-      if (checkError) {
-        console.error("Erro ao verificar vídeos duplicados:", checkError);
-        return 0;
-      }
-
-      const existingVideoIds = new Set(
-        existingVideos?.map((v) => v.video_id) || []
-      );
-      const uniqueVideos = videoRecords.filter(
-        (video) => !existingVideoIds.has(video.video_id)
-      );
-
-      if (uniqueVideos.length === 0) {
-        console.log("⏭️ Todos os vídeos já existem para o usuário");
-        return 0;
-      }
-
-      console.log(
-        `📹 Encontrados ${uniqueVideos.length} vídeos novos de ${videoRecords.length} vídeos no canal`
-      );
-
-      // Inserir apenas vídeos não duplicados
-      const { error: videosError } = await supabase
-        .from("videos")
-        .insert(uniqueVideos);
-
-      if (videosError) {
-        console.error("Error inserting videos:", videosError);
-        return 0;
-      } else {
-        console.log(`✅ ${uniqueVideos.length} vídeos inseridos com sucesso`);
-        return uniqueVideos.length;
-      }
-    } catch (error) {
-      console.error("Erro no processo de adição de vídeos:", error);
-      return 0;
-    }
-  };
-
-  // Função para escanear canais em busca de novos vídeos
-  const scanChannelsForNewVideos = async () => {
-    if (!userId || channels.length === 0) {
-      throw new Error("Nenhum canal para escanear");
+    if (!data.items || data.items.length === 0) {
+      throw new Error("Canal não encontrado na API do YouTube");
     }
 
-    const results = {
-      scannedChannels: 0,
-      totalNewVideos: 0,
-      channelsWithNewVideos: 0,
-      channelDetails: [],
+    const channelInfo = data.items[0].snippet;
+    return {
+      name: channelInfo.title,
+      thumbnail_url:
+        channelInfo.thumbnails?.default?.url ||
+        "https://via.placeholder.com/150/FF0000/FFFFFF?text=YT",
     };
-
-    try {
-      // Escanear cada canal individualmente
-      for (const channel of channels) {
-        try {
-          console.log(`🔍 Escaneando canal: ${channel.name}`);
-
-          // Buscar vídeos recentes do canal
-          const videos = await fetchChannelVideos(channel.channel_id);
-
-          if (videos && videos.length > 0) {
-            // Adicionar vídeos com verificação de duplicidade
-            const newVideosCount = await addVideosWithDuplicationCheck(
-              videos,
-              channel.channel_id
-            );
-
-            results.scannedChannels++;
-            results.totalNewVideos += newVideosCount;
-
-            if (newVideosCount > 0) {
-              results.channelsWithNewVideos++;
-            }
-
-            results.channelDetails.push({
-              channelId: channel.channel_id,
-              channelName: channel.name,
-              newVideos: newVideosCount,
-              totalVideos: videos.length,
-            });
-          } else {
-            results.scannedChannels++;
-            results.channelDetails.push({
-              channelId: channel.channel_id,
-              channelName: channel.name,
-              newVideos: 0,
-              totalVideos: 0,
-            });
-          }
-
-          // Pequeno delay para evitar rate limiting
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (channelError) {
-          console.error(
-            `Erro ao escanear canal ${channel.name}:`,
-            channelError
-          );
-          results.channelDetails.push({
-            channelId: channel.channel_id,
-            channelName: channel.name,
-            newVideos: 0,
-            totalVideos: 0,
-            error: channelError.message,
-          });
-        }
-      }
-
-      return results;
-    } catch (error) {
-      console.error("Erro no scan completo:", error);
-      throw error;
-    }
   };
 
-  // Função para corrigir canais existentes com channelId errado
-  const fixIncorrectChannelId = async (oldChannelId, correctChannelId) => {
-    if (!userId) {
-      throw new Error("Usuário não autenticado");
+  // Buscar últimos vídeos do canal via YouTube Search API
+  const fetchChannelVideos = async (channelId) => {
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=10&order=date&type=video&key=${YOUTUBE_API_KEY}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+      console.error("Erro na API de vídeos:", data.error);
+      return [];
     }
 
-    try {
-      console.log(
-        `🛠️ Corrigindo channelId: ${oldChannelId} -> ${correctChannelId}`
-      );
-
-      // 1. Buscar informações do canal correto
-      const channelInfo = await fetchChannelInfo(correctChannelId);
-
-      // 2. Atualizar o canal na tabela channels
-      const { error: channelError } = await supabase
-        .from("channels")
-        .update({
-          channel_id: correctChannelId,
-          name: channelInfo.name,
-          thumbnail_url: channelInfo.thumbnail_url,
-        })
-        .eq("channel_id", oldChannelId)
-        .eq("user_id", userId);
-
-      if (channelError) throw channelError;
-
-      // 3. Atualizar os vídeos na tabela videos
-      const { error: videosError } = await supabase
-        .from("videos")
-        .update({
-          channel_id: correctChannelId,
-        })
-        .eq("channel_id", oldChannelId)
-        .eq("user_id", userId);
-
-      if (videosError) throw videosError;
-
-      console.log("✅ Canal corrigido com sucesso!");
-      await fetchChannels(); // Recarregar a lista de canais
-
-      return { success: true };
-    } catch (error) {
-      console.error("❌ Erro ao corrigir canal:", error);
-      return { success: false, error: error.message };
-    }
+    return data.items || [];
   };
 
-  const addChannel = async (channelData) => {
+  // Adicionar vídeos sem duplicar
+  const addVideosWithDuplicationCheck = async (videos, channelId) => {
+    if (!userId) return 0;
+
+    const videoRecords = videos.map((v) => ({
+      video_id: v.id.videoId,
+      channel_id: channelId,
+      title: v.snippet.title,
+      description: v.snippet.description,
+      thumbnail_url: v.snippet.thumbnails?.high?.url || "",
+      published_at: v.snippet.publishedAt,
+      user_id: userId,
+    }));
+
+    const videoIds = videoRecords.map((v) => v.video_id);
+
+    // Verificar duplicados
+    const { data: existing, error: checkError } = await supabase
+      .from("videos")
+      .select("video_id")
+      .in("video_id", videoIds)
+      .eq("user_id", userId);
+
+    if (checkError) {
+      console.error("Erro verificando vídeos duplicados:", checkError);
+      return 0;
+    }
+
+    const existingIds = new Set(existing.map((v) => v.video_id));
+    const uniqueVideos = videoRecords.filter(
+      (v) => !existingIds.has(v.video_id)
+    );
+
+    if (uniqueVideos.length === 0) return 0;
+
+    const { error: insertError } = await supabase
+      .from("videos")
+      .insert(uniqueVideos);
+
+    if (insertError) {
+      console.error("Erro ao inserir vídeos:", insertError);
+      return 0;
+    }
+
+    return uniqueVideos.length;
+  };
+
+  // Adicionar canal + vídeos reais via API
+  const addChannel = async ({ channel_id }) => {
     try {
-      if (!userId) {
-        throw new Error(
-          "Usuário não autenticado. Faça login para adicionar canais."
-        );
-      }
+      if (!userId) throw new Error("Usuário não autenticado");
 
-      // VERIFICAÇÃO DE DUPLICIDADE - Canal
-      const channelExists = await checkChannelExists(channelData.channel_id);
-      if (channelExists) {
-        console.log(
-          "⏭️ Canal já existe para este usuário:",
-          channelData.channel_id
-        );
-        return {
-          success: false,
-          error: "Este canal já está na sua lista",
-          code: "CHANNEL_ALREADY_EXISTS",
-        };
-      }
+      // Buscar informações do canal
+      const channelInfo = await fetchChannelInfo(channel_id);
 
-      // Garantir que o usuário existe na tabela users antes de inserir o canal
-      await ensureUserExists(
-        userId,
-        user?.email || "unknown@email.com",
-        user?.user_metadata?.full_name || user?.name,
-        user?.user_metadata?.avatar_url || user?.picture
-      );
-
-      // Buscar informações reais do canal
-      const channelInfo = await fetchChannelInfo(channelData.channel_id);
-
-      // VALIDAÇÃO CRÍTICA: Verificar se channelInfo é válido
-      if (!channelInfo || !channelInfo.name) {
-        throw new Error("Não foi possível obter informações do canal");
-      }
-
-      // Buscar os últimos vídeos do canal (continua mesmo se falhar)
-      let videos = [];
-      try {
-        videos = await fetchChannelVideos(channelData.channel_id);
-      } catch (videoError) {
-        console.warn(
-          "Erro ao buscar vídeos, continuando sans vídeos:",
-          videoError.message
-        );
-      }
-
-      // Inserir canal no Supabase com user_id
-      const { data: channelResult, error: channelError } = await supabase
+      // Inserir canal no banco
+      const { data: inserted, error: channelError } = await supabase
         .from("channels")
         .insert([
           {
-            channel_id: channelData.channel_id,
+            channel_id,
             name: channelInfo.name,
             thumbnail_url: channelInfo.thumbnail_url,
-            user_id: userId, // Usar o userId do contexto
+            user_id: userId,
             user_email: user?.email || "unknown@email.com",
           },
         ])
         .select();
 
-      if (channelError) {
-        if (channelError.code === "23505") {
-          console.log(
-            "⏭️ Canal já existe no banco (duplicata):",
-            channelData.channel_id
-          );
-          return {
-            success: false,
-            error: "Este canal já está na sua lista",
-            code: "CHANNEL_ALREADY_EXISTS",
-          };
-        }
-        throw channelError;
-      }
+      if (channelError) throw channelError;
 
-      // Inserir vídeos no Supabase (se houver vídeos)
-      let videosAdded = 0;
-      if (videos.length > 0) {
-        videosAdded = await addVideosWithDuplicationCheck(
-          videos,
-          channelData.channel_id
-        );
-      }
+      // Buscar vídeos reais do canal
+      const videos = await fetchChannelVideos(channel_id);
+      const videosAdded = await addVideosWithDuplicationCheck(
+        videos,
+        channel_id
+      );
 
       await fetchChannels();
+
       return {
         success: true,
-        data: channelResult[0],
-        videosAdded: videosAdded,
+        data: inserted[0],
+        videosAdded,
         totalVideosFound: videos.length,
       };
-    } catch (error) {
-      console.error("Error adding channel:", error.message);
-      return {
-        success: false,
-        error: error.message,
-        suggestion:
-          "Verifique se a URL do canal está correta e se a API Key do YouTube é válida",
-      };
+    } catch (err) {
+      console.error("Erro ao adicionar canal:", err.message);
+      return { success: false, error: err.message };
     }
   };
 
   const removeChannel = async (channelId) => {
-    try {
-      if (!userId) {
-        throw new Error(
-          "Usuário não autenticado. Faça login para remover canais."
-        );
-      }
+    if (!userId) return { success: false, error: "Usuário não autenticado" };
 
-      // Primeiro, remover os vídeos associados ao canal deste usuário
-      const { error: videosError } = await supabase
+    try {
+      await supabase
         .from("videos")
         .delete()
         .eq("channel_id", channelId)
         .eq("user_id", userId);
-
-      if (videosError) {
-        console.error("Error removing videos:", videosError.message);
-        // Continuar mesmo se houver erro na remoção de vídeos
-      }
-
-      // Depois, remover o canal
-      const { error } = await supabase
+      await supabase
         .from("channels")
         .delete()
         .eq("channel_id", channelId)
         .eq("user_id", userId);
 
-      if (error) throw error;
-
       await fetchChannels();
       return { success: true };
-    } catch (error) {
-      console.error("Error removing channel:", error.message);
-      return { success: false, error: error.message };
-    }
-  };
-
-  // Função de debug para testar a busca de canais (opcional)
-  const testChannelSearch = async (channelUrl) => {
-    const { validateAndExtractYouTubeInfo } = await import(
-      "../utils/validation"
-    );
-
-    const validationResult = validateAndExtractYouTubeInfo(channelUrl);
-    if (!validationResult.isValid) {
-      console.error("❌ URL inválida:", validationResult.error);
-      return;
-    }
-
-    console.log("🔍 Testando canal:", validationResult.channelId);
-
-    try {
-      const videos = await fetchChannelVideos(validationResult.channelId);
-      console.log("📊 Resultado do teste:", {
-        channelId: validationResult.channelId,
-        videosFound: videos.length,
-        videos: videos.map((v) => ({
-          id: v.id.videoId,
-          title: v.snippet.title,
-          publishedAt: v.snippet.publishedAt,
-        })),
-      });
-    } catch (error) {
-      console.error("❌ Erro no teste:", error.message);
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   };
 
@@ -657,50 +215,5 @@ export const useChannels = () => {
     addChannel,
     removeChannel,
     refreshChannels: fetchChannels,
-    testChannelSearch,
-    checkChannelExists,
-    scanChannelsForNewVideos,
-    fixIncorrectChannelId,
-    isAuthenticated: !!userId,
   };
-};
-
-// Exportar função de teste para uso no console do navegador
-export const debugChannelSearch = async (channelUrl) => {
-  const { validateAndExtractYouTubeInfo } = await import("../utils/validation");
-
-  const validationResult = validateAndExtractYouTubeInfo(channelUrl);
-  if (!validationResult.isValid) {
-    console.error("❌ URL inválida:", validationResult.error);
-    return;
-  }
-
-  console.log("🔍 Testando canal:", validationResult.channelId);
-
-  try {
-    const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
-    let actualChannelId = validationResult.channelId;
-
-    if (validationResult.channelId.startsWith("@")) {
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
-        validationResult.channelId
-      )}&key=${YOUTUBE_API_KEY}`;
-
-      const searchResponse = await fetch(searchUrl);
-      const searchData = await searchResponse.json();
-      actualChannelId = searchData.items[0].id.channelId;
-    }
-
-    const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=5&order=date&type=video&key=${YOUTUBE_API_KEY}`;
-
-    console.log("📡 URL final da API:", apiUrl);
-
-    const response = await fetch(apiUrl);
-    const data = await response.json();
-
-    console.log("📊 Resposta completa da API:", data);
-    console.log("✅ Vídeos encontrados:", data.items?.length || 0);
-  } catch (error) {
-    console.error("❌ Erro no teste:", error.message);
-  }
 };

@@ -1,3 +1,4 @@
+// src/components/VideoCard.jsx
 import { Check, Play, Clock, Tag } from "lucide-react";
 import { useState } from "react";
 import KeywordManager from "./KeywordManager";

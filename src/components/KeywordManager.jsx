@@ -1,3 +1,4 @@
+// src/components/KeywordManager.jsx
 import { useState } from "react";
 import { X, Plus, Tag, Search } from "lucide-react";
 import { useKeywords } from "../hooks/useKeywords";

@@ -1,3 +1,4 @@
+// src/components/Header.jsx
 import { Menu, Eye, EyeOff, Trophy, X, Filter } from "lucide-react";
 import { useState } from "react";
 import Badge from "./Badge";
