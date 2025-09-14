@@ -120,7 +120,7 @@ export const useChannels = () => {
     }
   };
 
-  // Função para buscar os últimos vídeos de um canal
+  // Função para buscar os últimos vídeos de um canal - CORRIGIDA
   const fetchChannelVideos = async (channelId) => {
     if (!YOUTUBE_API_KEY) {
       throw new Error("API Key do YouTube não configurada");
@@ -129,14 +129,16 @@ export const useChannels = () => {
     try {
       let actualChannelId = channelId;
 
-      // Se for um @handle, primeiro precisamos obter o channelId real
+      // Se for um @handle, primeiro precisamos obter o channelId real CORRETAMENTE
       if (channelId.startsWith("@")) {
         console.log("🔍 Convertendo @handle para channelId real:", channelId);
 
-        // Buscar o channelId real usando o handle
+        // Buscar o channelId real usando o handle - MÉTODO CORRETO
         const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
           channelId
         )}&key=${YOUTUBE_API_KEY}`;
+
+        console.log("📡 Buscando channelId real com URL:", searchUrl);
 
         const searchResponse = await fetch(searchUrl);
         const searchData = await searchResponse.json();
@@ -151,9 +153,29 @@ export const useChannels = () => {
           throw new Error("Canal não encontrado na API do YouTube");
         }
 
+        // VERIFICAÇÃO CRÍTICA: Garantir que estamos pegando o canal correto
+        const correctChannel = searchData.items.find(
+          (item) =>
+            item.snippet.channelTitle
+              .toLowerCase()
+              .includes(channelId.replace("@", "").toLowerCase()) ||
+            item.snippet.title
+              .toLowerCase()
+              .includes(channelId.replace("@", "").toLowerCase())
+        );
+
+        if (!correctChannel) {
+          throw new Error("Não foi possível encontrar o canal correto");
+        }
+
         // Obter o channelId real do resultado da busca
-        actualChannelId = searchData.items[0].id.channelId;
-        console.log("✅ ChannelId real encontrado:", actualChannelId);
+        actualChannelId = correctChannel.id.channelId;
+        console.log(
+          "✅ ChannelId real encontrado:",
+          actualChannelId,
+          "para o canal:",
+          correctChannel.snippet.channelTitle
+        );
       }
 
       // Agora buscar vídeos usando o channelId real
@@ -180,7 +202,12 @@ export const useChannels = () => {
         return [];
       }
 
-      console.log("✅ Vídeos encontrados:", data.items.length);
+      console.log(
+        "✅ Vídeos encontrados:",
+        data.items.length,
+        "para o channelId:",
+        actualChannelId
+      );
       return data.items;
     } catch (error) {
       console.error("❌ Erro detalhado ao buscar vídeos:", error.message);
@@ -382,6 +409,54 @@ export const useChannels = () => {
     }
   };
 
+  // Função para corrigir canais existentes com channelId errado
+  const fixIncorrectChannelId = async (oldChannelId, correctChannelId) => {
+    if (!userId) {
+      throw new Error("Usuário não autenticado");
+    }
+
+    try {
+      console.log(
+        `🛠️ Corrigindo channelId: ${oldChannelId} -> ${correctChannelId}`
+      );
+
+      // 1. Buscar informações do canal correto
+      const channelInfo = await fetchChannelInfo(correctChannelId);
+
+      // 2. Atualizar o canal na tabela channels
+      const { error: channelError } = await supabase
+        .from("channels")
+        .update({
+          channel_id: correctChannelId,
+          name: channelInfo.name,
+          thumbnail_url: channelInfo.thumbnail_url,
+        })
+        .eq("channel_id", oldChannelId)
+        .eq("user_id", userId);
+
+      if (channelError) throw channelError;
+
+      // 3. Atualizar os vídeos na tabela videos
+      const { error: videosError } = await supabase
+        .from("videos")
+        .update({
+          channel_id: correctChannelId,
+        })
+        .eq("channel_id", oldChannelId)
+        .eq("user_id", userId);
+
+      if (videosError) throw videosError;
+
+      console.log("✅ Canal corrigido com sucesso!");
+      await fetchChannels(); // Recarregar a lista de canais
+
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Erro ao corrigir canal:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
   const addChannel = async (channelData) => {
     try {
       if (!userId) {
@@ -426,7 +501,7 @@ export const useChannels = () => {
         videos = await fetchChannelVideos(channelData.channel_id);
       } catch (videoError) {
         console.warn(
-          "Erro ao buscar vídeos, continuando sem vídeos:",
+          "Erro ao buscar vídeos, continuando sans vídeos:",
           videoError.message
         );
       }
@@ -563,6 +638,7 @@ export const useChannels = () => {
     testChannelSearch,
     checkChannelExists,
     scanChannelsForNewVideos,
+    fixIncorrectChannelId,
     isAuthenticated: !!userId,
   };
 };
