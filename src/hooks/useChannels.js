@@ -128,12 +128,13 @@ export const useChannels = () => {
 
     try {
       let actualChannelId = channelId;
+      let channelName = "";
 
-      // Se for um @handle, primeiro precisamos obter o channelId real CORRETAMENTE
+      // Se for um @handle, primeiro precisamos obter o channelId real
       if (channelId.startsWith("@")) {
         console.log("🔍 Convertendo @handle para channelId real:", channelId);
 
-        // Buscar o channelId real usando o handle - MÉTODO CORRETO
+        // Buscar o channelId real usando o handle
         const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
           channelId
         )}&key=${YOUTUBE_API_KEY}`;
@@ -144,41 +145,42 @@ export const useChannels = () => {
         const searchData = await searchResponse.json();
 
         if (searchData.error) {
-          throw new Error(
-            `Erro na API do YouTube: ${searchData.error.message}`
-          );
+          console.error("Erro na API de busca:", searchData.error);
+          return [];
         }
 
         if (!searchData.items || searchData.items.length === 0) {
-          throw new Error("Canal não encontrado na API do YouTube");
+          console.warn("Nenhum canal encontrado para:", channelId);
+          return [];
         }
 
-        // VERIFICAÇÃO CRÍTICA: Garantir que estamos pegando o canal correto
-        const correctChannel = searchData.items.find(
+        // Encontrar o canal mais relevante (com mais correspondências)
+        const handleToFind = channelId.replace("@", "").toLowerCase();
+        const relevantChannel = searchData.items.find(
           (item) =>
-            item.snippet.channelTitle
-              .toLowerCase()
-              .includes(channelId.replace("@", "").toLowerCase()) ||
-            item.snippet.title
-              .toLowerCase()
-              .includes(channelId.replace("@", "").toLowerCase())
+            item.snippet.channelTitle.toLowerCase().includes(handleToFind) ||
+            item.snippet.title.toLowerCase().includes(handleToFind)
         );
 
-        if (!correctChannel) {
-          throw new Error("Não foi possível encontrar o canal correto");
+        if (!relevantChannel) {
+          console.warn(
+            "Não foi possível encontrar um canal relevante para:",
+            channelId
+          );
+          return [];
         }
 
-        // Obter o channelId real do resultado da busca
-        actualChannelId = correctChannel.id.channelId;
+        actualChannelId = relevantChannel.id.channelId;
+        channelName = relevantChannel.snippet.channelTitle;
         console.log(
-          "✅ ChannelId real encontrado:",
+          "✅ ChannelId encontrado:",
           actualChannelId,
-          "para o canal:",
-          correctChannel.snippet.channelTitle
+          "Nome:",
+          channelName
         );
       }
 
-      // Agora buscar vídeos usando o channelId real
+      // Buscar vídeos do canal
       const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${actualChannelId}&maxResults=20&order=date&type=video&key=${YOUTUBE_API_KEY}`;
 
       console.log("📡 Buscando vídeos com URL:", apiUrl);
@@ -186,12 +188,9 @@ export const useChannels = () => {
       const response = await fetch(apiUrl);
       const data = await response.json();
 
-      if (data.error && data.error.code === 400) {
-        throw new Error("API Key do YouTube inválida");
-      }
-
       if (data.error) {
-        throw new Error(`Erro na API do YouTube: ${data.error.message}`);
+        console.error("Erro na API de vídeos:", data.error);
+        return [];
       }
 
       if (!data.items || data.items.length === 0) {
@@ -199,18 +198,41 @@ export const useChannels = () => {
           "ℹ️ Nenhum vídeo encontrado para o channelId:",
           actualChannelId
         );
+
+        // Tentar método alternativo: search por vídeos do canal
+        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
+          channelName || channelId
+        )}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`;
+
+        console.log("🔄 Tentando busca alternativa com URL:", searchUrl);
+
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
+
+        if (searchData.items && searchData.items.length > 0) {
+          // Filtrar apenas vídeos do canal correto
+          const channelVideos = searchData.items.filter(
+            (item) =>
+              item.snippet.channelId === actualChannelId ||
+              item.snippet.channelTitle.includes(
+                channelName || channelId.replace("@", "")
+              )
+          );
+
+          console.log(
+            "📹 Vídeos encontados via busca alternativa:",
+            channelVideos.length
+          );
+          return channelVideos;
+        }
+
         return [];
       }
 
-      console.log(
-        "✅ Vídeos encontrados:",
-        data.items.length,
-        "para o channelId:",
-        actualChannelId
-      );
+      console.log("✅ Vídeos encontrados:", data.items.length);
       return data.items;
     } catch (error) {
-      console.error("❌ Erro detalhado ao buscar vídeos:", error.message);
+      console.error("❌ Erro ao buscar vídeos:", error.message);
       return [];
     }
   };
