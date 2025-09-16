@@ -199,34 +199,36 @@ const Sidebar = ({
   };
 
   const handleYTScan = async () => {
-    if (!channels.length) {
-      setError("Nenhum canal para escanear. Adicione canais primeiro.");
-      return;
-    }
-
-    setIsScanning(true);
-    setError("");
-    setSuccess("");
-    setScanResults(null);
+    const loadingToast = toast.loading(
+      "🔄 Escaneando canais por novos vídeos..."
+    );
 
     try {
-      // Simular um scan (esta função será implementada no useChannels)
-      const results = await scanChannelsForNewVideos();
+      const result = await scanChannelsForNewVideos((channelResult) => {
+        if (channelResult.newVideos > 0) {
+          toast.success(
+            `📺 ${channelResult.channelName}: ${channelResult.newVideos} novos vídeos`
+          );
+        } else {
+          toast(`ℹ️ ${channelResult.channelName}: nenhum vídeo novo`, {
+            icon: "📭",
+          });
+        }
+      });
 
-      setScanResults(results);
+      toast.dismiss(loadingToast);
 
-      if (results.totalNewVideos > 0) {
-        setSuccess(
-          `✅ Scan completo! ${results.totalNewVideos} novo(s) vídeo(s) encontrado(s).`
+      if (result.totalNewVideos > 0) {
+        toast.success(
+          `🎉 Total: ${result.totalNewVideos} novos vídeos adicionados`
         );
       } else {
-        setSuccess("✅ Scan completo! Nenhum novo vídeo encontrado.");
+        toast(`📭 Nenhum vídeo novo encontrado nos canais.`);
       }
-    } catch (error) {
-      console.error("Erro no YTScan:", error);
-      setError("Erro ao escanear canais. Tente novamente.");
-    } finally {
-      setIsScanning(false);
+    } catch (err) {
+      toast.dismiss(loadingToast);
+      toast.error("❌ Erro ao escanear canais");
+      console.error(err);
     }
   };
 

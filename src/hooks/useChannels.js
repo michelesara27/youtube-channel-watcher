@@ -20,6 +20,7 @@ if (!YOUTUBE_API_KEY) {
 export const useChannels = () => {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false); // novo estado
   const { userId, user } = useAuth();
 
   useEffect(() => {
@@ -241,11 +242,72 @@ export const useChannels = () => {
     }
   };
 
+  // Escanear todos os canais cadastrados e buscar novos vídeos
+  const scanChannelsForNewVideos = async (onChannelScanned) => {
+    if (!userId || channels.length === 0) {
+      throw new Error("Nenhum canal para escanear");
+    }
+
+    setScanning(true);
+    const results = {
+      scannedChannels: 0,
+      totalNewVideos: 0,
+      channelsWithNewVideos: 0,
+      channelDetails: [],
+    };
+
+    try {
+      for (const channel of channels) {
+        try {
+          const videos = await fetchChannelVideos(channel.channel_id);
+          let newVideosCount = 0;
+
+          if (videos && videos.length > 0) {
+            newVideosCount = await addVideosWithDuplicationCheck(
+              videos,
+              channel.channel_id
+            );
+          }
+
+          results.scannedChannels++;
+          results.totalNewVideos += newVideosCount;
+          if (newVideosCount > 0) results.channelsWithNewVideos++;
+
+          const channelResult = {
+            channelId: channel.channel_id,
+            channelName: channel.name,
+            newVideos: newVideosCount,
+            totalVideos: videos.length,
+          };
+          results.channelDetails.push(channelResult);
+
+          // callback de progresso (ex: mostrar toast na UI)
+          if (onChannelScanned) {
+            onChannelScanned(channelResult);
+          }
+
+          await new Promise((r) => setTimeout(r, 500)); // evitar rate limit
+        } catch (channelError) {
+          console.error(
+            `Erro ao escanear canal ${channel.name}:`,
+            channelError
+          );
+        }
+      }
+
+      return results;
+    } finally {
+      setScanning(false);
+    }
+  };
+
   return {
     channels,
     loading,
+    scanning, // expor estado para UI
     addChannel,
     removeChannel,
     refreshChannels: fetchChannels,
+    scanChannelsForNewVideos,
   };
 };
