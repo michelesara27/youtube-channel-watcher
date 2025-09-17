@@ -20,7 +20,6 @@ if (!YOUTUBE_API_KEY) {
 export const useChannels = () => {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false); // novo estado
   const { userId, user } = useAuth();
 
   useEffect(() => {
@@ -242,72 +241,96 @@ export const useChannels = () => {
     }
   };
 
-  // Escanear todos os canais cadastrados e buscar novos vídeos
-  const scanChannelsForNewVideos = async (onChannelScanned) => {
+  // NOVA FUNÇÃO: Escanear canais por novos vídeos
+  const scanChannelsForNewVideos = async (refreshVideosCallback) => {
     if (!userId || channels.length === 0) {
-      throw new Error("Nenhum canal para escanear");
+      return {
+        success: false,
+        error: "Nenhum canal disponível para escanear",
+        scannedChannels: 0,
+        totalNewVideos: 0,
+        channelsWithNewVideos: 0,
+        channelDetails: [],
+      };
     }
 
-    setScanning(true);
-    const results = {
-      scannedChannels: 0,
-      totalNewVideos: 0,
-      channelsWithNewVideos: 0,
-      channelDetails: [],
-    };
-
     try {
+      let totalNewVideos = 0;
+      let channelsWithNewVideos = 0;
+      const channelDetails = [];
+
+      // Para cada canal do usuário
       for (const channel of channels) {
-        try {
-          const videos = await fetchChannelVideos(channel.channel_id);
-          let newVideosCount = 0;
+        console.log(`🔍 Escaneando canal: ${channel.name}`);
 
-          if (videos && videos.length > 0) {
-            newVideosCount = await addVideosWithDuplicationCheck(
-              videos,
-              channel.channel_id
-            );
-          }
+        // Buscar vídeos mais recentes do canal
+        const videos = await fetchChannelVideos(channel.channel_id);
 
-          results.scannedChannels++;
-          results.totalNewVideos += newVideosCount;
-          if (newVideosCount > 0) results.channelsWithNewVideos++;
+        if (videos && videos.length > 0) {
+          // Adicionar vídeos com verificação de duplicatas
+          const videosAdded = await addVideosWithDuplicationCheck(
+            videos,
+            channel.channel_id
+          );
 
-          const channelResult = {
+          channelDetails.push({
             channelId: channel.channel_id,
             channelName: channel.name,
-            newVideos: newVideosCount,
-            totalVideos: videos.length,
-          };
-          results.channelDetails.push(channelResult);
+            newVideos: videosAdded,
+            totalVideosFound: videos.length,
+          });
 
-          // callback de progresso (ex: mostrar toast na UI)
-          if (onChannelScanned) {
-            onChannelScanned(channelResult);
+          if (videosAdded > 0) {
+            totalNewVideos += videosAdded;
+            channelsWithNewVideos++;
+            console.log(
+              `✅ ${videosAdded} novo(s) vídeo(s) encontrado(s) para ${channel.name}`
+            );
+          } else {
+            console.log(`ℹ️ Nenhum vídeo novo para ${channel.name}`);
           }
-
-          await new Promise((r) => setTimeout(r, 500)); // evitar rate limit
-        } catch (channelError) {
-          console.error(
-            `Erro ao escanear canal ${channel.name}:`,
-            channelError
-          );
+        } else {
+          console.log(`⚠️ Nenhum vídeo encontrado para ${channel.name}`);
+          channelDetails.push({
+            channelId: channel.channel_id,
+            channelName: channel.name,
+            newVideos: 0,
+            totalVideosFound: 0,
+          });
         }
       }
 
-      return results;
-    } finally {
-      setScanning(false);
+      // Recarregar a lista de vídeos após adicionar novos
+      if (typeof refreshVideosCallback === "function") {
+        await refreshVideosCallback();
+      }
+
+      return {
+        success: true,
+        scannedChannels: channels.length,
+        totalNewVideos,
+        channelsWithNewVideos,
+        channelDetails,
+      };
+    } catch (error) {
+      console.error("Erro ao escanear canais:", error);
+      return {
+        success: false,
+        error: error.message,
+        scannedChannels: 0,
+        totalNewVideos: 0,
+        channelsWithNewVideos: 0,
+        channelDetails: [],
+      };
     }
   };
 
   return {
     channels,
     loading,
-    scanning, // expor estado para UI
     addChannel,
     removeChannel,
     refreshChannels: fetchChannels,
-    scanChannelsForNewVideos,
+    scanChannelsForNewVideos, // Nova função exportada
   };
 };
