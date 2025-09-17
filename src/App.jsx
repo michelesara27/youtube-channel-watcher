@@ -23,6 +23,8 @@ function AppContent() {
     loading: channelsLoading,
     addChannel,
     removeChannel,
+    scanChannelsForNewVideos,
+    refreshChannels,
   } = useChannels();
 
   const {
@@ -135,6 +137,8 @@ function AppContent() {
         removeChannel={removeChannel}
         loading={channelsLoading}
         onChannelsFilter={handleChannelsFilter}
+        refreshVideos={refreshVideos}
+        scanChannelsForNewVideos={scanChannelsForNewVideos}
       />
 
       <div className="flex-1 flex flex-col lg:ml-0">
@@ -162,7 +166,6 @@ function AppContent() {
             onSearchChange={searchVideos}
             onClearSearch={clearSearch}
             onKeywordsUpdate={updateVideoKeywords}
-            filteredChannels={filteredChannels}
           />
         </main>
 

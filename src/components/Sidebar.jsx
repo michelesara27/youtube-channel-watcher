@@ -32,6 +32,7 @@ const Sidebar = ({
   loading,
   onChannelsFilter,
   refreshVideos,
+  scanChannelsForNewVideos,
 }) => {
   const [channelUrl, setChannelUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -212,8 +213,8 @@ const Sidebar = ({
     setScanResults(null);
 
     try {
-      // Chamar a função de escaneamento
-      const results = await scanChannelsForNewVideos();
+      // Chamar a função de escaneamento do hook useChannels
+      const results = await scanChannelsForNewVideos(refreshVideos);
 
       setScanResults(results);
 
@@ -233,89 +234,6 @@ const Sidebar = ({
       setError("Erro ao escanear canais. Tente novamente.");
     } finally {
       setIsScanning(false);
-    }
-  };
-
-  const scanChannelsForNewVideos = async () => {
-    if (!channels.length) {
-      return {
-        success: false,
-        error: "Nenhum canal disponível para escanear",
-        scannedChannels: 0,
-        totalNewVideos: 0,
-        channelsWithNewVideos: 0,
-        channelDetails: [],
-      };
-    }
-
-    try {
-      let totalNewVideos = 0;
-      let channelsWithNewVideos = 0;
-      const channelDetails = [];
-
-      // Para cada canal do usuário
-      for (const channel of channels) {
-        console.log(`🔍 Escaneando canal: ${channel.name}`);
-
-        // Buscar vídeos mais recentes do canal
-        const videos = await fetchChannelVideos(channel.channel_id);
-
-        if (videos && videos.length > 0) {
-          // Adicionar vídeos com verificação de duplicatas
-          const videosAdded = await addVideosWithDuplicationCheck(
-            videos,
-            channel.channel_id
-          );
-
-          channelDetails.push({
-            channelId: channel.channel_id,
-            channelName: channel.name,
-            newVideos: videosAdded,
-            totalVideosFound: videos.length,
-          });
-
-          if (videosAdded > 0) {
-            totalNewVideos += videosAdded;
-            channelsWithNewVideos++;
-            console.log(
-              `✅ ${videosAdded} novo(s) vídeo(s) encontrado(s) para ${channel.name}`
-            );
-          } else {
-            console.log(`ℹ️ Nenhum vídeo novo para ${channel.name}`);
-          }
-        } else {
-          console.log(`⚠️ Nenhum vídeo encontrado para ${channel.name}`);
-          channelDetails.push({
-            channelId: channel.channel_id,
-            channelName: channel.name,
-            newVideos: 0,
-            totalVideosFound: 0,
-          });
-        }
-      }
-
-      // Recarregar a lista de vídeos após adicionar novos
-      if (typeof refreshVideos === "function") {
-        await refreshVideos();
-      }
-
-      return {
-        success: true,
-        scannedChannels: channels.length,
-        totalNewVideos,
-        channelsWithNewVideos,
-        channelDetails,
-      };
-    } catch (error) {
-      console.error("Erro ao escanear canais:", error);
-      return {
-        success: false,
-        error: error.message,
-        scannedChannels: 0,
-        totalNewVideos: 0,
-        channelsWithNewVideos: 0,
-        channelDetails: [],
-      };
     }
   };
 
@@ -532,27 +450,28 @@ const Sidebar = ({
                   <strong>{scanResults.channelsWithNewVideos}</strong>
                 </p>
 
-                {scanResults.channelDetails.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-medium">Detalhes por canal:</p>
-                    {scanResults.channelDetails.map((detail, index) => (
-                      <div key={index} className="flex justify-between mt-1">
-                        <span className="truncate max-w-xs">
-                          {detail.channelName}
-                        </span>
-                        <span
-                          className={
-                            detail.newVideos > 0
-                              ? "text-green-600 font-medium"
-                              : "text-gray-500"
-                          }
-                        >
-                          {detail.newVideos} novo(s)
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {scanResults.channelDetails &&
+                  scanResults.channelDetails.length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-medium">Detalhes por canal:</p>
+                      {scanResults.channelDetails.map((detail, index) => (
+                        <div key={index} className="flex justify-between mt-1">
+                          <span className="truncate max-w-xs">
+                            {detail.channelName}
+                          </span>
+                          <span
+                            className={
+                              detail.newVideos > 0
+                                ? "text-green-600 font-medium"
+                                : "text-gray-500"
+                            }
+                          >
+                            {detail.newVideos} novo(s)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
             </div>
           )}
