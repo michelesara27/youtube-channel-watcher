@@ -2,13 +2,6 @@ import { useState, useEffect } from "react";
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUserSession } from "./hooks/useUserSession";
 import { useChannels } from "./hooks/useChannels";
-importPercebi que o arquivo foi cortado novamente. Vou completar o App.jsx com o roteamento correto:
-
-<dyad-write path="src/App.jsx" description="Atualizando App.jsx para usar React Router e roteamento adequado">
-import { useState, useEffect } from "react";
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
-import { useUserSession } from "./hooks/useUserSession";
-import { useChannels } from "./hooks/useChannels";
 import { useVideos } from "./hooks/useVideos";
 import { useAuth } from "./contexts/AuthContext";
 import { useAchievements } from "./hooks/useAchievements";
