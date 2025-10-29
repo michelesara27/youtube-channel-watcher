@@ -1,10 +1,12 @@
 // src/components/Login.jsx
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { ArrowLeft } from "lucide-react";
 
 const Login = () => {
   const { signInWithGoogle, loading } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Tentar login automático se o script carregar
@@ -21,7 +23,7 @@ const Login = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     const redirectUri = encodeURIComponent(
       import.meta.env.VITE_GOOGLE_REDIRECT_URI ||
-        "https://youtube-canais.pages.dev/auth/callback"
+        `${window.location.origin}/auth/callback`
     );
     const scope = encodeURIComponent("email profile");
 
@@ -32,7 +34,7 @@ const Login = () => {
   };
 
   const handleBackToLanding = () => {
-    window.location.href = "/";
+    navigate("/", { replace: true });
   };
 
   return (

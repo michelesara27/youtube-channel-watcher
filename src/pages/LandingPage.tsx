@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Play, 
   Trophy, 
@@ -17,12 +18,16 @@ import {
   Search,
   BarChart3,
   Crown,
-  Sparkles
+  Sparkles,
+  Loader
 } from "lucide-react";
 
 const LandingPage = () => {
   const [activeFeature, setActiveFeature] = useState(0);
   const [userCount, setUserCount] = useState(1247);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [navigationError, setNavigationError] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Animação de contagem de usuários
@@ -34,6 +39,31 @@ const LandingPage = () => {
       clearTimeout(timer);
     };
   }, []);
+
+  const handleGetStarted = async () => {
+    setIsNavigating(true);
+    setNavigationError("");
+
+    try {
+      // Pequeno delay para mostrar o feedback visual
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Navegação suave usando React Router
+      navigate("/login", { 
+        replace: false, // Mantém no histórico
+        state: { from: "landing" } // Estado opcional para tracking
+      });
+      
+    } catch (error) {
+      console.error("Erro na navegação:", error);
+      setNavigationError("Erro ao redirecionar. Tente novamente.");
+    } finally {
+      // Se a navegação não ocorreu (erro ou componente desmontado)
+      setTimeout(() => {
+        setIsNavigating(false);
+      }, 2000);
+    }
+  };
 
   const features = [
     {
@@ -81,11 +111,6 @@ const LandingPage = () => {
     { type: "focused", title: "Focado", description: "Complete um canal inteiro", progress: 20 }
   ];
 
-  const handleGetStarted = () => {
-    // Redirecionar para a página de login
-    window.location.href = "/login";
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Header Hero */}
@@ -130,17 +155,37 @@ const LandingPage = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={handleGetStarted}
-              className="inline-flex items-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 rounded-xl hover:from-red-700 hover:to-red-800 transition-all transform hover:scale-105 shadow-lg"
+              disabled={isNavigating}
+              className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 rounded-xl hover:from-red-700 hover:to-red-800 transition-all transform hover:scale-105 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
             >
-              Começar Agora
-              <ArrowRight className="ml-2 w-5 h-5" />
+              {isNavigating ? (
+                <>
+                  <Loader className="w-5 h-5 mr-2 animate-spin" />
+                  Redirecionando...
+                </>
+              ) : (
+                <>
+                  Começar Agora
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </>
+              )}
             </button>
             
-            <button className="inline-flex items-center px-8 py-4 text-lg font-semibold text-gray-700 bg-white rounded-xl hover:bg-gray-50 transition-all border-2 border-gray-200">
+            <button 
+              className="inline-flex items-center px-8 py-4 text-lg font-semibold text-gray-700 bg-white rounded-xl hover:bg-gray-50 transition-all border-2 border-gray-200"
+              disabled={isNavigating}
+            >
               <Play className="mr-2 w-5 h-5" />
               Ver Demonstração
             </button>
           </div>
+
+          {/* Mensagem de erro */}
+          {navigationError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg max-w-md mx-auto">
+              <p className="text-red-700 text-sm">{navigationError}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -302,9 +347,17 @@ const LandingPage = () => {
 
               <button
                 onClick={handleGetStarted}
-                className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-4 rounded-xl font-semibold hover:from-red-700 hover:to-red-800 transition-all shadow-lg"
+                disabled={isNavigating}
+                className="w-full flex items-center justify-center bg-gradient-to-r from-red-600 to-red-700 text-white py-4 rounded-xl font-semibold hover:from-red-700 hover:to-red-800 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Começar Agora - R$ 8,99/trimestre
+                {isNavigating ? (
+                  <>
+                    <Loader className="w-5 h-5 mr-2 animate-spin" />
+                    Redirecionando...
+                  </>
+                ) : (
+                  "Começar Agora - R$ 8,99/trimestre"
+                )}
               </button>
 
               <p className="text-center text-sm text-gray-500 mt-4">

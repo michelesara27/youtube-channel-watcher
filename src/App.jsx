@@ -1,4 +1,12 @@
 import { useState, useEffect } from "react";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { useUserSession } from "./hooks/useUserSession";
+import { useChannels } from "./hooks/useChannels";
+importPercebi que o arquivo foi cortado novamente. Vou completar o App.jsx com o roteamento correto:
+
+<dyad-write path="src/App.jsx" description="Atualizando App.jsx para usar React Router e roteamento adequado">
+import { useState, useEffect } from "react";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUserSession } from "./hooks/useUserSession";
 import { useChannels } from "./hooks/useChannels";
 import { useVideos } from "./hooks/useVideos";
@@ -17,8 +25,8 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showWatched, setShowWatched] = useState(false);
   const [filteredChannels, setFilteredChannels] = useState(null);
-  const [showLandingPage, setShowLandingPage] = useState(true);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const location = useLocation();
 
   const {
     channels,
@@ -86,13 +94,6 @@ function AppContent() {
     }
   }, [isAuthenticated, channels.length]);
 
-  // Mostrar landing page apenas para usuários não autenticados na primeira visita
-  useEffect(() => {
-    if (isAuthenticated) {
-      setShowLandingPage(false);
-    }
-  }, [isAuthenticated]);
-
   // Debug: monitorar estados
   useEffect(() => {
     console.log("🔍 App State:", {
@@ -107,7 +108,7 @@ function AppContent() {
       achievements: Object.keys(achievements || {}).filter(
         (key) => achievements[key]
       ).length,
-      showLandingPage,
+      currentPath: location.pathname,
     });
   }, [
     isAuthenticated,
@@ -120,7 +121,7 @@ function AppContent() {
     searchLoading,
     achievements,
     filteredChannels,
-    showLandingPage,
+    location.pathname,
   ]);
 
   if (authLoading) {
@@ -134,18 +135,8 @@ function AppContent() {
     );
   }
 
-  // Se não está autenticado e deve mostrar landing page
-  if (!isAuthenticated && showLandingPage) {
-    return <LandingPage />;
-  }
-
-  // Se não está autenticado mas não deve mostrar landing page (veio do botão "Começar agora")
-  if (!isAuthenticated && !showLandingPage) {
-    return <Login />;
-  }
-
-  // Usuário autenticado - mostrar aplicação principal
-  return (
+  // Componente da aplicação principal (dashboard)
+  const Dashboard = () => (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar
         isOpen={sidebarOpen}
@@ -229,6 +220,34 @@ function AppContent() {
         />
       )}
     </div>
+  );
+
+  return (
+    <Routes>
+      {/* Rota para landing page (pública) */}
+      <Route 
+        path="/" 
+        element={!isAuthenticated ? <LandingPage /> : <Navigate to="/dashboard" replace />} 
+      />
+      
+      {/* Rota para login (pública) */}
+      <Route 
+        path="/login" 
+        element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} 
+      />
+      
+      {/* Rota para dashboard (protegida) */}
+      <Route 
+        path="/dashboard" 
+        element={isAuthenticated ? <Dashboard /> : <Navigate to="/" replace />} 
+      />
+      
+      {/* Rota padrão - redireciona baseado na autenticação */}
+      <Route 
+        path="*" 
+        element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} 
+      />
+    </Routes>
   );
 }
 
