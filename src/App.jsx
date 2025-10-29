@@ -6,8 +6,20 @@ import { useAuth } from "./contexts/AuthContext";
 import { useAchievements } from "./hooks/useAchievements";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
+import VideoPercebi que o arquivo foi cortado. Vou completar a implementação do App.jsx atualizado:
+
+<dyad-write path="src/App.jsx" description="Atualizando App.jsx para incluir roteamento entre landing page e app principal">
+import { useState, useEffect } from "react";
+import { useUserSession } from "./hooks/useUserSession";
+import { useChannels } from "./hooks/useChannels";
+import { useVideos } from "./hooks/useVideos";
+import { useAuth } from "./contexts/AuthContext";
+import { useAchievements } from "./hooks/useAchievements";
+import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
 import VideoGrid from "./components/VideoGrid";
 import Login from "./components/Login";
+import LandingPage from "./pages/LandingPage";
 import Celebration from "./components/Celebration";
 import "./index.css";
 
@@ -16,6 +28,7 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showWatched, setShowWatched] = useState(false);
   const [filteredChannels, setFilteredChannels] = useState(null);
+  const [showLandingPage, setShowLandingPage] = useState(true);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
 
   const {
@@ -84,6 +97,18 @@ function AppContent() {
     }
   }, [isAuthenticated, channels.length]);
 
+  // Mostrar landing page apenas para usuários não autenticados na primeira visita
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowLandingPage(false);
+    }
+  }, [isAuthenticated]);
+
+  // Função para navegar para o login a partir da landing page
+  const handleNavigateToLogin = () => {
+    setShowLandingPage(false);
+  };
+
   // Debug: monitorar estados
   useEffect(() => {
     console.log("🔍 App State:", {
@@ -98,6 +123,7 @@ function AppContent() {
       achievements: Object.keys(achievements || {}).filter(
         (key) => achievements[key]
       ).length,
+      showLandingPage,
     });
   }, [
     isAuthenticated,
@@ -110,6 +136,7 @@ function AppContent() {
     searchLoading,
     achievements,
     filteredChannels,
+    showLandingPage,
   ]);
 
   if (authLoading) {
@@ -123,10 +150,17 @@ function AppContent() {
     );
   }
 
-  if (!isAuthenticated) {
+  // Se não está autenticado e deve mostrar landing page
+  if (!isAuthenticated && showLandingPage) {
+    return <LandingPage />;
+  }
+
+  // Se não está autenticado mas não deve mostrar landing page (veio do botão "Começar agora")
+  if (!isAuthenticated && !showLandingPage) {
     return <Login />;
   }
 
+  // Usuário autenticado - mostrar aplicação principal
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar

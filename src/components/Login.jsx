@@ -1,6 +1,7 @@
 // src/components/Login.jsx
 import { useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { ArrowLeft } from "lucide-react";
 
 const Login = () => {
   const { signInWithGoogle, loading } = useAuth();
@@ -16,18 +17,6 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Login localhost:
-  //const handleLogin = () => {
-  // Login direto sem dependência do script
-  //  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  //  const redirectUri = encodeURIComponent("http://localhost:5173");
-  //  const scope = encodeURIComponent("email profile");
-
-  //  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
-
-  //  window.location.href = authUrl;
-  //};
-
   const handleLogin = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     const redirectUri = encodeURIComponent(
@@ -42,9 +31,22 @@ const Login = () => {
     window.location.href = authUrl;
   };
 
+  const handleBackToLanding = () => {
+    window.location.href = "/";
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full">
+      <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full relative">
+        {/* Botão voltar */}
+        <button
+          onClick={handleBackToLanding}
+          className="absolute top-4 left-4 flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+        >
+          <ArrowLeft size={20} className="mr-1" />
+          <span className="text-sm">Voltar</span>
+        </button>
+
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             YouTube Channel Watcher
@@ -104,7 +106,18 @@ const Login = () => {
             <li>• Acompanhe vídeos não assistidos</li>
             <li>• Marque vídeos como assistidos</li>
             <li>• Dados salvos por usuário</li>
+            <li>• Sistema de conquistas gamificado</li>
           </ul>
+        </div>
+
+        {/* Informações do plano */}
+        <div className="mt-4 p-4 bg-green-50 rounded-md border border-green-200">
+          <h3 className="text-sm font-medium text-green-800 mb-2">
+            💎 Plano Premium
+          </h3>
+          <p className="text-sm text-green-700">
+            Acesso completo por apenas <strong>R$ 8,99/trimestre</strong>
+          </p>
         </div>
       </div>
     </div>
