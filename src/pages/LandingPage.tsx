@@ -23,7 +23,6 @@ import {
 const LandingPage = () => {
   const [activeFeature, setActiveFeature] = useState(0);
   const [userCount, setUserCount] = useState(1247);
-  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     // Animação de contagem de usuários
@@ -31,14 +30,8 @@ const LandingPage = () => {
       setUserCount(prev => prev + Math.floor(Math.random() * 10));
     }, 3000);
 
-    // Progresso de onboarding animado
-    const progressInterval = setInterval(() => {
-      setProgress(prev => (prev >= 100 ? 0 : prev + 10));
-    }, 2000);
-
     return () => {
       clearTimeout(timer);
-      clearInterval(progressInterval);
     };
   }, []);
 
@@ -317,42 +310,6 @@ const LandingPage = () => {
               <p className="text-center text-sm text-gray-500 mt-4">
                 ✅ 7 dias de garantia ou seu dinheiro de volta
               </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Seção Final CTA */}
-      <div className="bg-gray-900 text-white py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold mb-4">
-            Pronto para transformar sua experiência no YouTube?
-          </h2>
-          <p className="text-gray-300 text-lg mb-8 max-w-2xl mx-auto">
-            Junte-se a milhares de usuários que já descobriram uma nova forma de consumir conteúdo educativo.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={handleGetStarted}
-              className="inline-flex items-center px-8 py-4 text-lg font-semibold text-gray-900 bg-white rounded-xl hover:bg-gray-100 transition-all transform hover:scale-105"
-            >
-              Começar Agora Gratuitamente
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Progresso de onboarding */}
-          <div className="mt-12 max-w-md mx-auto">
-            <div className="flex justify-between text-sm text-gray-400 mb-2">
-              <span>Seu progresso inicial</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div 
-                className="bg-green-500 h-2 rounded-full transition-all duration-1000"
-                style={{ width: `${progress}%` }}
-              ></div>
             </div>
           </div>
         </div>
