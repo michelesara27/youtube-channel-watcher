@@ -6,17 +6,6 @@ import { useAuth } from "./contexts/AuthContext";
 import { useAchievements } from "./hooks/useAchievements";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
-import VideoPercebi que o arquivo foi cortado. Vou completar a implementação do App.jsx atualizado:
-
-<dyad-write path="src/App.jsx" description="Atualizando App.jsx para incluir roteamento entre landing page e app principal">
-import { useState, useEffect } from "react";
-import { useUserSession } from "./hooks/useUserSession";
-import { useChannels } from "./hooks/useChannels";
-import { useVideos } from "./hooks/useVideos";
-import { useAuth } from "./contexts/AuthContext";
-import { useAchievements } from "./hooks/useAchievements";
-import Header from "./components/Header";
-import Sidebar from "./components/Sidebar";
 import VideoGrid from "./components/VideoGrid";
 import Login from "./components/Login";
 import LandingPage from "./pages/LandingPage";
@@ -103,11 +92,6 @@ function AppContent() {
       setShowLandingPage(false);
     }
   }, [isAuthenticated]);
-
-  // Função para navegar para o login a partir da landing page
-  const handleNavigateToLogin = () => {
-    setShowLandingPage(false);
-  };
 
   // Debug: monitorar estados
   useEffect(() => {
